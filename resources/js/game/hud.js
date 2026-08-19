@@ -136,12 +136,13 @@ export class Hud {
       n.cells[w.id] = { cell, ammo, lastAmmo: '∞' };
     }
 
-    // Fuse selector row (visible for grenade/cluster)
+    // Fuse selector (visible for grenade/cluster): label on top, buttons below.
     n.fuseRow = el('div', 'hud-fuse', n.panel);
-    el('span', 'hud-fuse__label', n.fuseRow, 'Fuse');
+    el('span', 'hud-fuse__label', n.fuseRow, 'FUSE');
+    const fuseBtnRow = el('div', 'hud-fuse__btns', n.fuseRow);
     n.fuseBtns = [];
     for (let i = 1; i <= 5; i++) {
-      const b = el('button', 'hud-fuse__btn', n.fuseRow, `${i}s`);
+      const b = el('button', 'hud-fuse__btn', fuseBtnRow, `${i}s`);
       b.type = 'button';
       b.addEventListener('click', () => this.cb.onFuseSelect && this.cb.onFuseSelect(i));
       n.fuseBtns.push(b);
@@ -311,7 +312,8 @@ export class Hud {
       this._last.fuseVisible = fuseVisible;
       n.fuseRow.classList.toggle('is-visible', fuseVisible);
     }
-    const fuse = state.fuse ?? state.selectedFuse ?? null;
+    // Engine exposes the fuse as state.grenadeFuse (default 3).
+    const fuse = state.grenadeFuse ?? state.fuse ?? state.selectedFuse ?? null;
     if (fuse !== this._last.fuse) {
       this._last.fuse = fuse;
       n.fuseBtns.forEach((b, i) => b.classList.toggle('is-selected', i + 1 === fuse));
