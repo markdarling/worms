@@ -43,6 +43,14 @@ const BAR_CSS = `
     cursor: pointer; pointer-events: auto;
 }
 .top-actions > *:hover { background: rgba(30, 40, 58, 0.92); }
+/* Home icon inside the HUD's turn-counter box (links page for seat holders). */
+.hud-turnbox { position: relative; padding-left: 34px !important; }
+.hud-homelink {
+    position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+    font-size: 15px; text-decoration: none; pointer-events: auto;
+    filter: grayscale(35%); transition: filter 0.12s, transform 0.12s;
+}
+.hud-homelink:hover { filter: none; transform: translateY(-50%) scale(1.15); }
 .net-banner {
     position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
     background: rgba(10, 14, 22, 0.88); border: 2px solid rgba(255,255,255,0.18);
@@ -134,26 +142,19 @@ export function mountReplayButton({ gameId, latestTurn, inLiveTurn }) {
     topActions().appendChild(btn);
 }
 
-// Spectator-link copy + (seat holders only) a link to the game's links page,
-// stacked with the Replays button under the turn counter.
-export function mountLinkActions({ spectateUrl, linksUrl }) {
-    const root = topActions();
-    if (spectateUrl) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.textContent = '👁 Spectator link';
-        btn.addEventListener('click', () => {
-            btn.textContent = copyText(spectateUrl) ? '✓ Copied' : 'Copy failed';
-            setTimeout(() => { btn.textContent = '👁 Spectator link'; }, 1500);
-        });
-        root.appendChild(btn);
-    }
-    if (linksUrl) {
-        const a = document.createElement('a');
-        a.href = linksUrl;
-        a.textContent = '🔗 All game links';
-        root.appendChild(a);
-    }
+// Home icon inside the turn-counter box linking to the game's links page
+// (seat holders only — that page holds every team's private link).
+export function mountLinkActions({ linksUrl }) {
+    if (!linksUrl) return;
+    injectStyles();
+    const turnbox = document.querySelector('.hud-turnbox');
+    if (!turnbox) return;
+    const a = document.createElement('a');
+    a.className = 'hud-homelink';
+    a.href = linksUrl;
+    a.title = 'All game links';
+    a.textContent = '🏠';
+    turnbox.appendChild(a);
 }
 
 // Pulsing status banner in the game chrome. kind: 'wait' (amber, default)

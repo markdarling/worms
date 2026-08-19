@@ -5,22 +5,21 @@
 @section('content')
 <div class="lobby">
     <h1>{{ $game->name }}</h1>
-    <p class="lobby-tagline">
-        Game created! Games aren't listed anywhere — these links are the only way in, so save this page.
-    </p>
+    <p class="lobby-tagline">Every link below is private and unguessable — a team link IS that team's seat.</p>
 
     <div class="lobby-card">
         @if ($game->mode === 'remote')
-            <h2>Team invite links</h2>
-            <p class="lobby-hint">Send each team their own link. A link is that team's seat — it's unguessable and lets its holder (and only them) play that team's turns.</p>
+            <h2>Team links</h2>
+            <p class="lobby-hint">Send each team their own link; keep yours.</p>
             <ul class="lobby-links-list">
                 @foreach ($game->players as $player)
                     <li class="lobby-link-row">
                         <span class="lobby-team-chip" style="--team-color: {{ $player->color }}">{{ $player->name }}</span>
-                        <input class="lobby-link-input" type="text" readonly
-                               value="{{ route('games.play', $player->token) }}"
-                               onclick="this.select()">
-                        <button type="button" class="lobby-btn lobby-btn--small" data-copy>Copy</button>
+                        <div class="lobby-link-field">
+                            <input type="text" readonly value="{{ route('games.play', $player->token) }}" onclick="this.select()">
+                            <button type="button" class="lobby-copy-icon" data-copy title="Copy link">⧉</button>
+                        </div>
+                        <a class="lobby-btn lobby-btn--small" href="{{ route('games.play', $player->token) }}">Open</a>
                     </li>
                 @endforeach
             </ul>
@@ -28,28 +27,24 @@
             <p class="lobby-hint">Watch-only — safe to share anywhere.</p>
         @else
             <h2>Game link</h2>
-            <p class="lobby-hint">Hotseat game — open this link on the shared device to play. Anyone with it can take turns.</p>
+            <p class="lobby-hint">Hotseat game — open on the shared device to play.</p>
         @endif
 
-        <div class="lobby-link-row">
-            <span class="lobby-team-chip" style="--team-color: #6b7a8c">{{ $game->mode === 'remote' ? 'Watch' : 'Play' }}</span>
-            <input class="lobby-link-input" type="text" readonly
-                   value="{{ route('games.show', $game) }}"
-                   onclick="this.select()">
-            <button type="button" class="lobby-btn lobby-btn--small" data-copy>Copy</button>
-        </div>
+        <ul class="lobby-links-list">
+            <li class="lobby-link-row">
+                <span class="lobby-team-chip" style="--team-color: #6b7a8c">{{ $game->mode === 'remote' ? 'Watch' : 'Play' }}</span>
+                <div class="lobby-link-field">
+                    <input type="text" readonly value="{{ route('games.show', $game) }}" onclick="this.select()">
+                    <button type="button" class="lobby-copy-icon" data-copy title="Copy link">⧉</button>
+                </div>
+                <a class="lobby-btn lobby-btn--small" href="{{ route('games.show', $game) }}">Open</a>
+            </li>
+        </ul>
 
         <p class="lobby-hint">
-            Bookmark this page to find everything again:
-            <a href="{{ route('games.links', ['game' => $game, 'key' => $game->share_key]) }}">this links page</a>
-            · or start another game in the <a href="{{ route('lobby') }}">lobby</a>.
+            Bookmark <a href="{{ route('games.links', ['game' => $game, 'key' => $game->share_key]) }}">this page</a> to find the links again
+            · start another game in the <a href="{{ route('lobby') }}">lobby</a>.
         </p>
-
-        @if ($game->mode !== 'remote')
-            <p class="lobby-hint">
-                <a href="{{ route('games.show', $game) }}" class="lobby-btn">Start playing →</a>
-            </p>
-        @endif
     </div>
 </div>
 
@@ -58,7 +53,7 @@
 <script>
     document.querySelectorAll('[data-copy]').forEach((btn) => {
         btn.addEventListener('click', async () => {
-            const input = btn.previousElementSibling;
+            const input = btn.closest('.lobby-link-field').querySelector('input');
             let ok = false;
             if (window.isSecureContext && navigator.clipboard) {
                 ok = await navigator.clipboard.writeText(input.value).then(() => true, () => false);
@@ -68,8 +63,8 @@
                 input.setSelectionRange(0, input.value.length);
                 ok = document.execCommand('copy');
             }
-            btn.textContent = ok ? '✓ Copied' : 'Press ⌘C';
-            setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+            btn.textContent = ok ? '✓' : '!';
+            setTimeout(() => { btn.textContent = '⧉'; }, 1400);
         });
     });
 </script>

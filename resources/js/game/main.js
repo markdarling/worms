@@ -75,6 +75,10 @@ async function boot() {
     // cinematically before their turn — the async replay feed.
     const remote = game.mode === 'remote';
     const myPosition = window.PLAYER_POSITION;
+    // The tab identifies your seat immediately, so open seats are tellable apart.
+    if (myPosition != null) {
+        document.title = `Worms — ${config.teams[myPosition]?.name ?? `Team ${myPosition + 1}`}`;
+    }
 
     sim.drainEvents();
     if (game.turns.length > 0) {
@@ -125,7 +129,7 @@ async function boot() {
         latestTurn: () => committedTurns,
         inLiveTurn: () => inLiveTurn,
     });
-    mountLinkActions({ spectateUrl: window.SPECTATE_URL, linksUrl: window.LINKS_URL });
+    mountLinkActions({ linksUrl: window.LINKS_URL });
 
     // Remote mode: this client owns one seat (or none — spectator).
     const myToken = window.PLAYER_TOKEN;
@@ -174,7 +178,7 @@ async function boot() {
         if (remote) {
             // Your turn starts immediately — signalled in the game chrome
             // (green banner + tab title), not a blocking overlay.
-            document.title = `🔴 Your turn! — ${game.name}`;
+            document.title = `🔴 Your turn! — ${teamName(activeTeam)}`;
             showNetBanner(`Your turn — ${teamName(activeTeam)}`, 'turn');
         } else {
             await new Promise((resolve) => hud.showPassDevice(teamName(activeTeam), resolve));

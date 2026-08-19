@@ -29,7 +29,7 @@ const WEAPONS = [
   { id: 'dynamite', label: 'Dynamite' },
   { id: 'airstrike', label: 'Air Strike' },
   { id: 'teleport', label: 'Teleport' },
-  // 'skip' is not listed as an icon — the labelled Skip Go button covers it.
+  { id: 'skip', label: 'Skip Go' },
 ];
 
 const FUSE_WEAPONS = new Set(['grenade', 'cluster']);
@@ -146,10 +146,6 @@ export class Hud {
       b.addEventListener('click', () => this.cb.onFuseSelect && this.cb.onFuseSelect(i));
       n.fuseBtns.push(b);
     }
-
-    const skip = el('button', 'hud-skipbtn', n.panel, 'Skip Go');
-    skip.type = 'button';
-    skip.addEventListener('click', () => this.cb.onSkip && this.cb.onSkip());
 
     // ---- Keybinding hint strip (collapsible, bottom-right) ----
     const keys = el('div', 'hud-keys', this.root);
