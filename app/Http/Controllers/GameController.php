@@ -50,7 +50,7 @@ class GameController extends Controller
         $game = DB::transaction(function () use ($validated, $seed, $config, $mode) {
             $game = Game::create([
                 'public_id' => bin2hex(random_bytes(20)),
-                'name' => $validated['name'],
+                'name' => filled($validated['name'] ?? null) ? $validated['name'] : \App\Support\GameNames::random(),
                 'seed' => $seed,
                 'config' => $config,
                 'status' => 'active',

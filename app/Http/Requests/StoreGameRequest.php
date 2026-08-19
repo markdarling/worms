@@ -14,7 +14,7 @@ class StoreGameRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:100'],
+            'name' => ['nullable', 'string', 'max:100'],
             'teams' => ['required', 'array', 'min:2', 'max:4'],
             'teams.*.name' => ['required', 'string', 'max:50'],
             'teams.*.color' => ['required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],

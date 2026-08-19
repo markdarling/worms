@@ -26,7 +26,7 @@
             <div class="lobby-form-row">
                 <label class="lobby-form-label" for="game-name">Game name</label>
                 <input class="lobby-form-input" type="text" id="game-name" name="name"
-                       value="{{ old('name') }}" placeholder="Sunday Skirmish" required maxlength="100">
+                       value="{{ old('name', $suggestedName) }}" required maxlength="100">
             </div>
 
 
@@ -43,12 +43,12 @@
                 <legend class="lobby-form-legend">Team names &amp; colours</legend>
                 @foreach ($defaultTeams as $i => $team)
                     <div class="lobby-form-team" data-team-row="{{ $i }}" @if ($i >= count(old('teams', [1, 2]))) hidden @endif>
-                        <input class="lobby-form-input lobby-form-team-name" type="text"
-                               name="teams[{{ $i }}][name]" aria-label="Team {{ $i + 1 }} name"
-                               value="{{ old("teams.$i.name", $team['name']) }}" maxlength="50">
                         <input class="lobby-form-color" type="color"
                                name="teams[{{ $i }}][color]" aria-label="Team {{ $i + 1 }} colour"
                                value="{{ old("teams.$i.color", $team['color']) }}">
+                        <input class="lobby-form-input lobby-form-team-name" type="text"
+                               name="teams[{{ $i }}][name]" aria-label="Team {{ $i + 1 }} name"
+                               value="{{ old("teams.$i.name", $team['name']) }}" maxlength="50">
                     </div>
                 @endforeach
             </fieldset>
@@ -78,14 +78,6 @@
         </form>
     </section>
 
-    <section class="lobby-card">
-        <h2 class="lobby-card-title">Finding your games</h2>
-        <p class="lobby-hint">
-            Games aren't listed here — every game lives at its own unguessable link.
-            When you create one you'll get a links page with the game URL (and a private
-            seat link per team for remote games). Bookmark it or keep the links in your chat.
-        </p>
-    </section>
 </main>
 
 {{-- Minimal page behaviour: show/hide team rows to match the team count.

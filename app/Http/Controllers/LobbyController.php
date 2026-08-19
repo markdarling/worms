@@ -9,6 +9,7 @@ class LobbyController extends Controller
     public function index(): View
     {
         return view('lobby', [
+            'suggestedName' => \App\Support\GameNames::random(),
             'defaultTeams' => [
                 ['name' => 'Red', 'color' => '#e84545'],
                 ['name' => 'Blue', 'color' => '#4593e8'],

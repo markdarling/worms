@@ -1285,3 +1285,29 @@ body.sudden-death #hud-root::before {
 }
 
 .lobby-copy-icon:hover { background: rgba(43, 32, 40, 0.18); }
+
+/* Team rows in the new-game form: colour swatch left, name beside it. */
+.lobby-form-team {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.lobby-form-team[hidden] { display: none; }
+
+.lobby-form-color {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 44px;
+  padding: 3px;
+  border: 2px solid var(--w-ink, #2b2028);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.lobby-form-team-name {
+  flex: 1;
+  min-width: 0;
+}
