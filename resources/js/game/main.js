@@ -75,6 +75,8 @@ async function boot() {
     // cinematically before their turn — the async replay feed.
     const remote = game.mode === 'remote';
     const myPosition = window.PLAYER_POSITION;
+    // Spectators get a stripped-down HUD (no weapon dock, no controls hint).
+    if (remote && myPosition == null) document.body.classList.add('spectator');
     // The tab identifies your seat immediately, so open seats are tellable apart.
     if (myPosition != null) {
         document.title = `Worms — ${config.teams[myPosition]?.name ?? `Team ${myPosition + 1}`}`;

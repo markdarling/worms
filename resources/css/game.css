@@ -226,10 +226,21 @@ body:has(#game-canvas) {
 
 .hud-stamina {
   position: absolute;
-  left: 12px;
-  bottom: 140px;
+  right: 12px;
+  bottom: 10px; /* bottom-right, on the weapon dock's baseline */
   padding: 6px 10px 8px;
   width: 200px;
+}
+
+/* Spectators and replays: no weapons to pick, no controls to learn. */
+body.spectator .hud-weapons,
+body.spectator .hud-keys,
+body.replay-mode .hud-keys {
+  display: none;
+}
+
+body.spectator .hud-teams {
+  bottom: 12px;
 }
 
 .hud-stamina__label {
@@ -301,7 +312,7 @@ body:has(#game-canvas) {
 .hud-power {
   position: absolute;
   left: 12px;
-  bottom: 196px;
+  bottom: 10px;
   width: 44px;
   padding: 8px 6px;
   display: flex;
@@ -587,7 +598,7 @@ body.replay-mode .hud-weapons { display: none; }
 .hud-keys {
   position: absolute;
   right: 12px;
-  bottom: 12px;
+  bottom: 74px; /* above the stamina bar, which owns the bottom-right corner */
   padding: 4px;
   max-width: 260px;
 }
