@@ -232,8 +232,14 @@ body:has(#game-canvas) {
   width: 200px;
 }
 
-/* Spectators and replays: no weapons to pick, no controls to learn. */
-body.spectator .hud-weapons,
+/* The weapon dock only exists while it is actually YOUR live turn — hovering
+   weapons while waiting or watching a replay is just noise. main.js toggles
+   body.my-turn around the live turn loop. */
+body:not(.my-turn) .hud-weapons {
+  display: none;
+}
+
+/* Spectators and replays additionally lose the controls hint. */
 body.spectator .hud-keys,
 body.replay-mode .hud-keys {
   display: none;

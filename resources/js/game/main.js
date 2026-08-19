@@ -189,7 +189,9 @@ async function boot() {
         input.beginTurn();
         input.enabled = true;
         inLiveTurn = true;
+        document.body.classList.add('my-turn'); // reveals the weapon dock
         await runLiveTurn(sim, renderer, camera, hud, input);
+        document.body.classList.remove('my-turn');
         inLiveTurn = false;
         input.enabled = false;
         if (remote) {
