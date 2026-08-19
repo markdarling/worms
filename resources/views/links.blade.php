@@ -20,8 +20,7 @@
                         <input class="lobby-link-input" type="text" readonly
                                value="{{ route('games.play', $player->token) }}"
                                onclick="this.select()">
-                        <button type="button" class="lobby-btn lobby-btn--small"
-                                onclick="navigator.clipboard.writeText(this.previousElementSibling.value).then(() => { this.textContent = '✓ Copied'; setTimeout(() => this.textContent = 'Copy', 1500); })">Copy</button>
+                        <button type="button" class="lobby-btn lobby-btn--small" data-copy>Copy</button>
                     </li>
                 @endforeach
             </ul>
@@ -37,8 +36,7 @@
             <input class="lobby-link-input" type="text" readonly
                    value="{{ route('games.show', $game) }}"
                    onclick="this.select()">
-            <button type="button" class="lobby-btn lobby-btn--small"
-                    onclick="navigator.clipboard.writeText(this.previousElementSibling.value).then(() => { this.textContent = '✓ Copied'; setTimeout(() => this.textContent = 'Copy', 1500); })">Copy</button>
+            <button type="button" class="lobby-btn lobby-btn--small" data-copy>Copy</button>
         </div>
 
         <p class="lobby-hint">
@@ -53,4 +51,25 @@
         @endif
     </div>
 </div>
+
+{{-- Clipboard API needs a secure context (HTTPS/localhost); worms.test over
+     plain HTTP doesn't qualify, so fall back to select + execCommand. --}}
+<script>
+    document.querySelectorAll('[data-copy]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const input = btn.previousElementSibling;
+            let ok = false;
+            if (window.isSecureContext && navigator.clipboard) {
+                ok = await navigator.clipboard.writeText(input.value).then(() => true, () => false);
+            }
+            if (!ok) {
+                input.select();
+                input.setSelectionRange(0, input.value.length);
+                ok = document.execCommand('copy');
+            }
+            btn.textContent = ok ? '✓ Copied' : 'Press ⌘C';
+            setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+        });
+    });
+</script>
 @endsection

@@ -188,12 +188,11 @@ export class ReplayBrowser {
 
     async _share(btnEl) {
         const url = `${location.origin}/games/${this.game.id}/replay/${this.turn}`;
-        try {
-            await navigator.clipboard.writeText(url);
+        if (copyText(url)) {
             btnEl.classList.add('replay-copied');
             btnEl.textContent = '✓ Copied';
             setTimeout(() => { btnEl.classList.remove('replay-copied'); btnEl.textContent = '🔗 Share'; }, 1600);
-        } catch {
+        } else {
             prompt('Copy this replay link:', url);
         }
     }
@@ -253,4 +252,24 @@ export class ReplayBrowser {
 
 function clamp(v, lo, hi) {
     return Math.max(lo, Math.min(hi, v));
+}
+
+// Clipboard API needs a secure context (HTTPS/localhost) — on plain HTTP
+// (worms.test) fall back to a temp textarea + execCommand. Async clipboard
+// writes are fired without awaiting; execCommand covers the insecure case.
+function copyText(text) {
+    if (window.isSecureContext && navigator.clipboard) {
+        navigator.clipboard.writeText(text).catch(() => {});
+        return true;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch { /* ignore */ }
+    ta.remove();
+    return ok;
 }
