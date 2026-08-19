@@ -33,7 +33,7 @@ const BAR_CSS = `
 .replay-bar .replay-copied { background: #45c860 !important; color: #06220c; }
 /* Top-right actions cluster, stacked under the turn counter. */
 .top-actions {
-    position: fixed; right: 12px; top: 62px; z-index: 55;
+    position: fixed; right: 12px; top: 122px; z-index: 55;
     display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
 }
 .top-actions > * {

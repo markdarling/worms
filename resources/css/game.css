@@ -227,7 +227,7 @@ body:has(#game-canvas) {
 .hud-stamina {
   position: absolute;
   right: 12px;
-  bottom: 10px; /* bottom-right, on the weapon dock's baseline */
+  top: 62px; /* top-right, under the turn counter, above Replays */
   padding: 6px 10px 8px;
   width: 200px;
 }
@@ -309,7 +309,7 @@ body.replay-mode .hud-keys {
 .hud-power {
   position: absolute;
   left: 12px;
-  bottom: 88px; /* raised clear of the team health panel below it */
+  bottom: 140px; /* left edge, clear of a full-width weapon dock */
   width: 44px;
   padding: 8px 6px;
   display: flex;
@@ -360,7 +360,7 @@ body.replay-mode .hud-keys {
 .hud-teams {
   position: absolute;
   left: 12px;
-  bottom: 10px; /* bottom-left, on the weapon dock's baseline */
+  top: 54px; /* top-left, tucked under the game title */
   padding: 8px 12px;
   display: flex;
   flex-direction: column;
@@ -592,7 +592,7 @@ body.replay-mode .hud-weapons { display: none; }
 .hud-keys {
   position: absolute;
   right: 12px;
-  bottom: 74px; /* above the stamina bar, which owns the bottom-right corner */
+  bottom: 10px; /* aligned with the weapon dock baseline */
   padding: 4px;
   max-width: 260px;
 }
