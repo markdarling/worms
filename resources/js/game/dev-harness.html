@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Worms presentation dev harness</title>
+<link rel="stylesheet" href="../../css/game.css">
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+<div id="hud-root"></div>
+<script type="module">
+// Standalone harness: run a local server from the repo root, e.g.
+//   python3 -m http.server 8123
+// then open http://localhost:8123/resources/js/game/dev-harness.html
+//
+// Keys: Tab = weapon panel · P = pass-device overlay · G = game over
+//       R = toggle replay banner · click = explosion at cursor · drag = pan
+//
+// URL hash modes (combinable, comma-separated):
+//   #lobby       preview the lobby CSS instead of the game
+//   #timer       drive frames from setInterval (for headless --virtual-time-budget)
+//   #boom        scripted explosion + damage + speech bubbles at t=2.4s
+//   #pass #gameover #replay #panelclosed   trigger HUD states on load
+// Surface uncaught errors visibly (headless screenshots can't read the console).
+window.addEventListener('error', (e) => {
+  if (String(e.message).includes('lobby-preview-mode')) return;
+  let box = document.getElementById('err-box');
+  if (!box) {
+    box = document.createElement('pre');
+    box.id = 'err-box';
+    box.style.cssText = 'position:fixed;left:8px;top:56px;z-index:999;background:#fff;color:#c00;padding:8px;font-size:11px;max-width:90vw;white-space:pre-wrap;';
+    document.body.appendChild(box);
+  }
+  box.textContent += `${e.message} @ ${e.filename}:${e.lineno}\n`;
+});
+
+import { Camera } from './camera.js';
+import { Renderer } from './renderer.js';
+import { Hud } from './hud.js';
+import { makeMockSim } from './dev-mock-sim.js';
+
+// #lobby — preview the lobby CSS with representative Blade-shaped markup.
+if (location.hash.includes('lobby')) {
+  document.getElementById('game-canvas').remove();
+  document.getElementById('hud-root').remove();
+  document.body.insertAdjacentHTML('afterbegin', `
+    <div class="lobby">
+      <h1>Worms: Armistice</h1>
+      <p class="lobby-tagline">Correspondence-chess Worms. Take your turn, pass the device, savour the replay.</p>
+      <div class="lobby-card">
+        <h2>New game</h2>
+        <form class="lobby-form">
+          <label>Game name</label>
+          <input type="text" value="Sunday Skirmish">
+          <fieldset>
+            <legend>Team 1</legend>
+            <label>Name</label>
+            <input type="text" value="Red Wrigglers">
+            <label>Colour</label>
+            <input type="color" value="#e84545">
+          </fieldset>
+          <label>Worms per team</label>
+          <select><option>4</option></select>
+          <label>World size</label>
+          <select><option>Standard (2400 × 900)</option></select>
+          <button type="button">Start game</button>
+        </form>
+      </div>
+      <div class="lobby-card lobby-games-list">
+        <h2>Games in progress</h2>
+        <table>
+          <tr><th>Game</th><th>Status</th><th>Turn</th><th></th></tr>
+          <tr><td>Sunday Skirmish</td><td><span class="lobby-status lobby-status--active">Active</span></td><td>12</td><td><a href="#">Continue</a></td></tr>
+          <tr><td>Mud Wrestle</td><td><span class="lobby-status lobby-status--finished">Finished</span></td><td>31</td><td><a href="#">View</a></td></tr>
+        </table>
+      </div>
+    </div>`);
+  throw new Error('lobby-preview-mode'); // halt game init (caught by error box, harmless)
+}
+
+const sim = makeMockSim();
+const canvas = document.getElementById('game-canvas');
+const camera = new Camera(window.innerWidth, window.innerHeight, sim.terrain.width, sim.terrain.height);
+const renderer = new Renderer(canvas, sim, camera);
+const hud = new Hud(document.getElementById('hud-root'), {
+  onWeaponSelect: (id) => { sim.state.selectedWeapon = id; },
+  onFuseSelect: (n) => { sim.state.fuse = n; },
+  onSkip: () => console.log('[harness] skip go'),
+});
+hud.setGameName('Dev Harness');
+hud.toggleWeaponPanel(true);
+
+// URL hash triggers for headless screenshots: #pass #gameover #replay #panelclosed
+if (location.hash.includes('pass')) hud.showPassDevice('Boggy B', () => {});
+if (location.hash.includes('gameover')) hud.showGameOver('Red Wrigglers');
+if (location.hash.includes('replay')) hud.setReplayMode(true, { onSkip: () => {}, onSpeed: () => {} });
+if (location.hash.includes('panelclosed')) hud.toggleWeaponPanel(false);
+if (location.hash.includes('boom')) {
+  // Deterministic fx burst for screenshots: explosion + damage + chatter.
+  setTimeout(() => {
+    const w = sim.state.worms[2]; // Spadge
+    sim.terrain.destroy(w.x + 30, w.y - 6, 30);
+    renderer.handleEvents([
+      { type: 'explosion', x: w.x + 30, y: w.y - 6, r: 30, strength: 50 },
+      { type: 'damage', wormId: w.id, amount: 38, x: w.x, y: w.y - 10 },
+      { type: 'wormTalk', wormId: sim.state.worms[3].id, kind: 'laugh' },
+      { type: 'wormTalk', wormId: w.id, kind: 'ohno' },
+    ]);
+  }, 2400);
+}
+
+let replay = false;
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') { e.preventDefault(); hud.toggleWeaponPanel(); }
+  if (e.key === 'p') hud.showPassDevice('Boggy B', () => console.log('[harness] ready'));
+  if (e.key === 'g') hud.showGameOver('Red Wrigglers');
+  if (e.key === 'r') {
+    replay = !replay;
+    hud.setReplayMode(replay, { onSkip: () => console.log('skip replay'), onSpeed: (s) => console.log('speed', s) });
+  }
+});
+
+let dragging = false, lastX = 0, lastY = 0, moved = 0;
+canvas.addEventListener('mousedown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; moved = 0; });
+window.addEventListener('mousemove', (e) => {
+  if (!dragging) return;
+  camera.nudge(lastX - e.clientX, lastY - e.clientY);
+  moved += Math.abs(lastX - e.clientX) + Math.abs(lastY - e.clientY);
+  lastX = e.clientX; lastY = e.clientY;
+});
+window.addEventListener('mouseup', (e) => {
+  if (dragging && moved < 4) {
+    const w = camera.screenToWorld(e.clientX, e.clientY);
+    sim.terrain.destroy(w.x | 0, w.y | 0, 34);
+    renderer.handleEvents([{ type: 'explosion', x: w.x, y: w.y, r: 34, strength: 60 }]);
+  }
+  dragging = false;
+});
+
+function step(dt) {
+  sim.tick(dt);
+  renderer.handleEvents(sim.drainEvents());
+  renderer.render(dt);
+  hud.update(sim.state, sim.phase);
+}
+
+if (location.hash.includes('timer')) {
+  // Headless-screenshot mode: rAF stalls under Chrome's --virtual-time-budget,
+  // so drive frames from a timer with a fixed dt instead.
+  setInterval(() => step(1 / 60), 16);
+} else {
+  let last = performance.now();
+  const frame = (now) => {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    step(dt);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{{-- Game page: the JS owns this page entirely — no markup chrome beyond the
+     canvas, the HUD mount point, and the game id for main.js to boot from. --}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ $game->name }} — Worms: Armistice</title>
+    <script>
+        window.GAME_ID = {{ $game->id }};
+        window.REPLAY_TURN = {{ ($replayTurn ?? null) !== null ? (int) $replayTurn : 'null' }};
+    </script>
+    @vite(['resources/css/game.css', 'resources/js/game/main.js'])
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+    <div id="hud-root"></div>
+</body>
+</html>
