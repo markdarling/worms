@@ -55,9 +55,15 @@ export class ReplayPlayer {
                     this.renderer.handleEvents(this.sim.drainEvents());
                     this.renderer.render(now - last); // renderer drives the camera
                     onFrame?.();
-                    if (i >= cmds.length) resolve();
-                    else requestAnimationFrame(frame);
+                    if (i >= cmds.length) {
+                        // Commands done — keep rendering so the final
+                        // explosion/particles settle before moving on.
+                        if (!settleUntil) settleUntil = now + 1200;
+                        if (now >= settleUntil) { resolve(); return; }
+                    }
+                    requestAnimationFrame(frame);
                 };
+                let settleUntil = 0;
                 requestAnimationFrame(frame);
             });
             if (this._skip) {

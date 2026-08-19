@@ -27,10 +27,10 @@ class LobbyTest extends TestCase
             ->assertSee('name="world_size"', false);
     }
 
-    public function test_lobby_lists_existing_games_with_continue_link(): void
+    public function test_lobby_does_not_list_or_leak_existing_games(): void
     {
         $game = Game::create([
-            'name' => 'Sunday Skirmish',
+            'name' => 'Secret Skirmish',
             'seed' => 12345,
             'config' => ['seed' => 12345],
             'status' => 'active',
@@ -39,12 +39,11 @@ class LobbyTest extends TestCase
         $game->players()->create(['name' => 'Red', 'color' => '#e84545', 'position' => 0]);
         $game->players()->create(['name' => 'Blue', 'color' => '#4593e8', 'position' => 1]);
 
+        // Games are link-addressed and private: the lobby must not reveal
+        // their names or unguessable URLs.
         $this->get('/')
             ->assertOk()
-            ->assertSee('Sunday Skirmish')
-            ->assertSee('Turn 3')
-            ->assertSee('Red')
-            ->assertSee('Blue')
-            ->assertSee(route('games.show', $game));
+            ->assertDontSee('Secret Skirmish')
+            ->assertDontSee($game->public_id);
     }
 }

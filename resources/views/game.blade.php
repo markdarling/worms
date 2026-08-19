@@ -7,8 +7,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $game->name }} — Worms: Armistice</title>
     <script>
-        window.GAME_ID = {{ $game->id }};
+        window.GAME_ID = @json($game->public_id);
         window.REPLAY_TURN = {{ ($replayTurn ?? null) !== null ? (int) $replayTurn : 'null' }};
+        window.PLAYER_TOKEN = @json($playerToken ?? null);
+        window.PLAYER_POSITION = @json($playerPosition ?? null);
     </script>
     @vite(['resources/css/game.css', 'resources/js/game/main.js'])
 </head>

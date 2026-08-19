@@ -25,6 +25,7 @@ class GameApiController extends Controller
             'id' => $game->id,
             'name' => $game->name,
             'status' => $game->status,
+            'mode' => $game->mode,
             'winner' => $game->winner,
             'config' => $game->config,
             'current_turn' => $game->current_turn,
@@ -75,7 +76,25 @@ class GameApiController extends Controller
             'player_position' => ['required', 'integer', 'min:0'],
             'game_over' => ['nullable', 'boolean'],
             'winner' => ['nullable', 'string', 'max:255'],
+            'player_token' => ['nullable', 'string', 'max:64'],
         ]);
+
+        // Remote games: the seat token is the credential. It must exist on this
+        // game AND belong to the team the turn is being committed for — a valid
+        // team-A token can never commit team B's turn. Hotseat games skip this
+        // (one trusted device).
+        if ($game->mode === 'remote') {
+            $player = $game->players()
+                ->where('token', (string) ($data['player_token'] ?? ''))
+                ->first();
+
+            if ($player === null || $player->position !== (int) $data['player_position']) {
+                return response()->json([
+                    'ok' => false,
+                    'error' => 'invalid_seat_token',
+                ], 403);
+            }
+        }
 
         return DB::transaction(function () use ($game, $data) {
             // Re-read inside the transaction so concurrent commits serialise.

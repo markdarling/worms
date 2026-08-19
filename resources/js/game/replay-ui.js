@@ -38,6 +38,33 @@ const BAR_CSS = `
     cursor: pointer; pointer-events: auto;
 }
 .replay-open-btn:hover { background: rgba(30, 40, 58, 0.92); }
+.net-banner {
+    position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
+    background: rgba(10, 14, 22, 0.88); border: 2px solid rgba(255,255,255,0.18);
+    border-radius: 12px; padding: 10px 18px; z-index: 58;
+    font: bold 14px 'Arial Rounded MT Bold', 'Verdana', sans-serif; color: #fff;
+    display: flex; align-items: center; gap: 10px; pointer-events: none;
+}
+.net-banner .net-dot {
+    width: 9px; height: 9px; border-radius: 50%; background: #e8b445;
+    animation: net-pulse 1.4s ease-in-out infinite;
+}
+@keyframes net-pulse { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
+.turn-gate {
+    position: fixed; inset: 0; z-index: 70; display: grid; place-items: center;
+    background: rgba(8, 10, 16, 0.55); pointer-events: auto;
+}
+.turn-gate-card {
+    background: #fdf6e3; color: #2b2028; border: 3px solid #2b2028; border-radius: 16px;
+    padding: 28px 40px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    font-family: 'Arial Rounded MT Bold', 'Verdana', sans-serif;
+}
+.turn-gate-card small { display: block; letter-spacing: 0.12em; opacity: 0.6; font-size: 11px; }
+.turn-gate-card h2 { margin: 6px 0 16px; font-size: 30px; }
+.turn-gate-card button {
+    background: linear-gradient(180deg, #7ede4f, #45c828); color: #fff; border: 2px solid #2f7edb;
+    border-radius: 10px; padding: 10px 26px; font: bold 16px inherit; cursor: pointer;
+}
 `;
 
 function injectStyles() {
@@ -62,6 +89,45 @@ export function mountReplayButton({ gameId, latestTurn, inLiveTurn }) {
         location.href = `/games/${gameId}/replay/${n}`;
     });
     document.body.appendChild(btn);
+}
+
+// Pulsing status banner for remote games ("Waiting for Blue Team…").
+let netBannerEl = null;
+export function showNetBanner(text) {
+    injectStyles();
+    if (!netBannerEl) {
+        netBannerEl = document.createElement('div');
+        netBannerEl.className = 'net-banner';
+        netBannerEl.innerHTML = '<span class="net-dot"></span><span class="net-text"></span>';
+        document.body.appendChild(netBannerEl);
+    }
+    netBannerEl.querySelector('.net-text').textContent = text;
+    netBannerEl.style.display = 'flex';
+}
+export function hideNetBanner() {
+    if (netBannerEl) netBannerEl.style.display = 'none';
+}
+
+// "You're up!" gate before a remote player's own turn — an explicit start
+// click (also satisfies the browser's user-gesture rule for audio).
+export function showTurnGate(teamName) {
+    injectStyles();
+    return new Promise((resolve) => {
+        const gate = document.createElement('div');
+        gate.className = 'turn-gate';
+        gate.innerHTML = `
+            <div class="turn-gate-card">
+                <small>IT'S YOUR TURN</small>
+                <h2></h2>
+                <button type="button">Take the turn!</button>
+            </div>`;
+        gate.querySelector('h2').textContent = teamName;
+        gate.querySelector('button').addEventListener('click', () => {
+            gate.remove();
+            resolve();
+        });
+        document.body.appendChild(gate);
+    });
 }
 
 export class ReplayBrowser {

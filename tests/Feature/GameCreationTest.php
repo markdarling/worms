@@ -29,7 +29,7 @@ class GameCreationTest extends TestCase
         $response = $this->post('/games', $this->validPayload());
 
         $game = Game::sole();
-        $response->assertRedirect(route('games.show', $game));
+        $response->assertRedirect(route('games.links', ['game' => $game, 'key' => $game->share_key]));
 
         $this->assertSame('Sunday Skirmish', $game->name);
         $this->assertSame('active', $game->status);

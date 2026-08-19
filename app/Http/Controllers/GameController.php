@@ -43,13 +43,20 @@ class GameController extends Controller
             'suddenDeathRound' => (int) $validated['sudden_death_round'],
         ];
 
-        $game = DB::transaction(function () use ($validated, $seed, $config) {
+        // All new games are remote (link-per-team). The mode column and the
+        // hotseat pass-device flow remain only for games created before this.
+        $mode = 'remote';
+
+        $game = DB::transaction(function () use ($validated, $seed, $config, $mode) {
             $game = Game::create([
+                'public_id' => bin2hex(random_bytes(20)),
                 'name' => $validated['name'],
                 'seed' => $seed,
                 'config' => $config,
                 'status' => 'active',
+                'mode' => $mode,
                 'current_turn' => 1,
+                'share_key' => bin2hex(random_bytes(20)),
             ]);
 
             foreach ($config['teams'] as $position => $team) {
@@ -57,13 +64,40 @@ class GameController extends Controller
                     'name' => $team['name'],
                     'color' => $team['color'],
                     'position' => $position,
+                    // Seat token: the unguessable invite link AND the turn-commit
+                    // credential for this team (160 bits of entropy).
+                    'token' => bin2hex(random_bytes(20)),
                 ]);
             }
 
             return $game;
         });
 
-        return redirect()->route('games.show', $game);
+        // Games aren't listed anywhere — the links page is the one place the
+        // creator collects every URL, so both modes land there.
+        return redirect()->route('games.links', ['game' => $game, 'key' => $game->share_key]);
+    }
+
+    /** Creator-only page listing each team's invite link. Guarded by share_key. */
+    public function links(Game $game): View
+    {
+        abort_unless(hash_equals((string) $game->share_key, (string) request()->query('key', '')), 403);
+
+        return view('links', ['game' => $game]);
+    }
+
+    /** A team seat, addressed by its unguessable token. */
+    public function play(string $token): View
+    {
+        $player = \App\Models\Player::where('token', $token)->firstOrFail();
+        $game = $player->game;
+
+        return view('game', [
+            'game' => $game,
+            'replayTurn' => null,
+            'playerToken' => $player->token,
+            'playerPosition' => $player->position,
+        ]);
     }
 
     public function show(Game $game, ?int $turn = null): View

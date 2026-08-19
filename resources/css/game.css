@@ -1103,3 +1103,59 @@ body.sudden-death #hud-root::before {
   .hud-keys { display: none; }
   .lobby-card { padding: 18px 16px; }
 }
+
+/* ==========================================================================
+   INVITE LINKS PAGE (remote multiplayer)
+   ========================================================================== */
+
+.lobby-links-list {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.lobby-link-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lobby-team-chip {
+  flex: 0 0 auto;
+  min-width: 110px;
+  text-align: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 2px solid var(--w-ink, #2b2028);
+  background: var(--team-color, #888);
+  color: #fff;
+  font-weight: bold;
+  font-size: 13px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.lobby-link-input {
+  flex: 1;
+  font: 12px/1.4 ui-monospace, Menlo, monospace;
+  padding: 9px 12px;
+  border: 2px solid var(--w-ink, #2b2028);
+  border-radius: 10px;
+  background: #fff;
+  color: #2b2028;
+  min-width: 0;
+}
+
+.lobby-btn--small {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.lobby-hint {
+  font-size: 13px;
+  opacity: 0.75;
+  margin: 8px 0 0;
+}
+
+.lobby-hint a { color: #2f7edb; }

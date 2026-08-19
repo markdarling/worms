@@ -13,8 +13,8 @@ import { Camera } from './camera.js';
 import { Hud } from './hud.js';
 import { InputRecorder } from './input.js';
 import { ReplayPlayer } from './replay.js';
-import { ReplayBrowser, mountReplayButton } from './replay-ui.js';
-import { fetchGame, postTurn } from './api.js';
+import { ReplayBrowser, mountReplayButton, showNetBanner, hideNetBanner, showTurnGate } from './replay-ui.js';
+import { fetchGame, fetchTurnsAfter, postTurn } from './api.js';
 
 const TICK_MS = 1000 / 60;
 
@@ -96,19 +96,53 @@ async function boot() {
         inLiveTurn: () => inLiveTurn,
     });
 
+    // Remote mode: this client owns one seat (or none — spectator).
+    const remote = game.mode === 'remote';
+    const myPosition = window.PLAYER_POSITION;
+    const myToken = window.PLAYER_TOKEN;
+    const baseTitle = document.title;
+
     let running = true;
     while (running) {
         if (sim.phase === 'game-over') {
+            hideNetBanner();
             hud.showGameOver(sim.winner === 'draw' ? null : teamName(sim.winner));
             break;
         }
 
         const turnNumber = (sim.state.turnNumber ?? 0) + 1;
+
+        // Peek at who plays next without mutating the live sim (beginTurn has
+        // side effects — crates, wind — so probe a snapshot clone instead).
+        const peek = Sim.fromSnapshot(config, sim.snapshot());
+        peek.beginTurn(turnNumber);
+        const nextTeam = peek.state.worms.find((w) => w.id === peek.state.activeWormId)?.teamIndex ?? 0;
+
+        if (remote && nextTeam !== myPosition) {
+            // Not our seat: wait for the opponent's committed turn, then play
+            // it back cinematically — the async replay feed in action.
+            const arrived = await waitForTurns(gameId, turnNumber, teamName(nextTeam), sim, renderer, hud);
+            if (!arrived) return; // fetch failure already surfaced
+            // replayer.play() runs beginTurn itself — calling it here too would
+            // advance the team rotation twice and desync the replay.
+            for (const t of arrived) {
+                await replayer.play([t], () => hud.update(sim.state, sim.phase), () => hud.update(sim.state, sim.phase));
+                committedTurns = t.number;
+            }
+            continue;
+        }
+
         sim.beginTurn(turnNumber);
         renderer.handleEvents(sim.drainEvents());
         const activeTeam = sim.state.worms.find((w) => w.id === sim.state.activeWormId)?.teamIndex ?? 0;
 
-        await new Promise((resolve) => hud.showPassDevice(teamName(activeTeam), resolve));
+        if (remote) {
+            document.title = `🔴 Your turn! — ${game.name}`;
+            await showTurnGate(teamName(activeTeam));
+            document.title = baseTitle;
+        } else {
+            await new Promise((resolve) => hud.showPassDevice(teamName(activeTeam), resolve));
+        }
 
         input.beginTurn();
         input.enabled = true;
@@ -121,6 +155,7 @@ async function boot() {
         const gameOver = sim.phase === 'game-over';
         const payload = {
             number: turnNumber,
+            player_token: myToken ?? undefined,
             player_position: activeTeam,
             commands: encodeCommands(input.recording),
             snapshot_after: sim.snapshot(),
@@ -144,10 +179,54 @@ async function boot() {
     }
 }
 
+// Poll for the opponent's turn(s). Keeps the scene rendering (water, idle
+// animations) while waiting. Resolves with the new turn records, or null on a
+// persistent fetch failure (already surfaced to the user).
+async function waitForTurns(gameId, expectedTurn, waitingOnName, sim, renderer, hud) {
+    showNetBanner(`Waiting for ${waitingOnName}…`);
+
+    let stop = false;
+    let last = performance.now();
+    const idle = (now) => {
+        if (stop) return;
+        renderer.handleEvents(sim.drainEvents());
+        renderer.render(now - last);
+        hud.update(sim.state, sim.phase);
+        last = now;
+        requestAnimationFrame(idle);
+    };
+    requestAnimationFrame(idle);
+
+    let failures = 0;
+    try {
+        for (;;) {
+            try {
+                const turns = await fetchTurnsAfter(gameId, expectedTurn - 1);
+                failures = 0;
+                if (turns.length > 0) return turns;
+            } catch (e) {
+                if (++failures >= 5) {
+                    alert('Lost contact with the server. Check the connection and reload.');
+                    return null;
+                }
+            }
+            await new Promise((r) => setTimeout(r, 5000));
+        }
+    } finally {
+        stop = true;
+        hideNetBanner();
+    }
+}
+
+// Once the sim reaches turn-over, keep rendering this long so explosions,
+// damage numbers and particles finish before the hand-over screen appears.
+const SETTLE_MS = 1600;
+
 function runLiveTurn(sim, renderer, camera, hud, input) {
     return new Promise((resolve) => {
         let last = performance.now();
         let acc = 0;
+        let settleUntil = 0;
         const frame = (now) => {
             acc += Math.min(now - last, 250);
             const dt = now - last;
@@ -169,8 +248,13 @@ function runLiveTurn(sim, renderer, camera, hud, input) {
             hud.update(sim.state, sim.phase);
 
             if (sim.phase === 'turn-over' || sim.phase === 'game-over') {
-                resolve();
-                return;
+                // Let the last explosion/damage-number animations play out
+                // before handing over.
+                if (settleUntil === 0) settleUntil = now + SETTLE_MS;
+                if (now >= settleUntil) {
+                    resolve();
+                    return;
+                }
             }
             requestAnimationFrame(frame);
         };

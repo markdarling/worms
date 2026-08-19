@@ -12,6 +12,7 @@ class Player extends Model
         'name',
         'color',
         'position',
+        'token',
     ];
 
     protected function casts(): array

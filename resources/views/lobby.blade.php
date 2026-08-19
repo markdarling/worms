@@ -29,6 +29,7 @@
                        value="{{ old('name') }}" placeholder="Sunday Skirmish" required maxlength="100">
             </div>
 
+
             <div class="lobby-form-row">
                 <label class="lobby-form-label" for="team-count">Teams</label>
                 <select class="lobby-form-select" id="team-count" data-team-count>
@@ -77,36 +78,13 @@
         </form>
     </section>
 
-    <section class="lobby-card lobby-card--games">
-        <h2 class="lobby-card-title">Games</h2>
-
-        @if ($games->isEmpty())
-            <p class="lobby-games-empty">No games yet — start one above.</p>
-        @else
-            <ul class="lobby-games-list">
-                @foreach ($games as $game)
-                    <li class="lobby-game">
-                        <div class="lobby-game-info">
-                            <span class="lobby-game-name">{{ $game->name }}</span>
-                            <span class="lobby-game-meta">
-                                <span class="lobby-game-status lobby-game-status--{{ $game->status }}">
-                                    {{ $game->status === 'finished' ? ($game->winner ? "Finished — {$game->winner} won" : 'Finished — draw') : 'Active' }}
-                                </span>
-                                <span class="lobby-game-turn">Turn {{ $game->current_turn }}</span>
-                            </span>
-                            <span class="lobby-game-players">
-                                @foreach ($game->players as $player)
-                                    <span class="lobby-game-player" style="--team-color: {{ $player->color }}">{{ $player->name }}</span>
-                                @endforeach
-                            </span>
-                        </div>
-                        <a class="lobby-game-continue" href="{{ route('games.show', $game) }}">
-                            {{ $game->status === 'finished' ? 'View' : 'Continue' }}
-                        </a>
-                    </li>
-                @endforeach
-            </ul>
-        @endif
+    <section class="lobby-card">
+        <h2 class="lobby-card-title">Finding your games</h2>
+        <p class="lobby-hint">
+            Games aren't listed here — every game lives at its own unguessable link.
+            When you create one you'll get a links page with the game URL (and a private
+            seat link per team for remote games). Bookmark it or keep the links in your chat.
+        </p>
     </section>
 </main>
 

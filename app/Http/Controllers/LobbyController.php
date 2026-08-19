@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Game;
 use Illuminate\View\View;
 
 class LobbyController extends Controller
@@ -10,7 +9,6 @@ class LobbyController extends Controller
     public function index(): View
     {
         return view('lobby', [
-            'games' => Game::with('players')->latest('updated_at')->get(),
             'defaultTeams' => [
                 ['name' => 'Red', 'color' => '#e84545'],
                 ['name' => 'Blue', 'color' => '#4593e8'],

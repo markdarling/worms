@@ -55,9 +55,9 @@ class GameApiTest extends TestCase
     public function test_state_fetch_returns_contract_shape(): void
     {
         $game = $this->makeGame();
-        $this->postJson("/api/games/{$game->id}/turns", $this->turnPayload(1))->assertOk();
+        $this->postJson("/api/games/{$game->public_id}/turns", $this->turnPayload(1))->assertOk();
 
-        $response = $this->getJson("/api/games/{$game->id}");
+        $response = $this->getJson("/api/games/{$game->public_id}");
 
         $response->assertOk()->assertJson([
             'id' => $game->id,
@@ -73,7 +73,7 @@ class GameApiTest extends TestCase
 
         $data = $response->json();
         $this->assertSame(
-            ['id', 'name', 'status', 'winner', 'config', 'current_turn', 'snapshot', 'players', 'turns'],
+            ['id', 'name', 'status', 'mode', 'winner', 'config', 'current_turn', 'snapshot', 'players', 'turns'],
             array_keys($data)
         );
         $this->assertSame($game->config, $data['config']);
@@ -91,7 +91,7 @@ class GameApiTest extends TestCase
     {
         $game = $this->makeGame();
 
-        $this->getJson("/api/games/{$game->id}")
+        $this->getJson("/api/games/{$game->public_id}")
             ->assertOk()
             ->assertJson(['snapshot' => null, 'current_turn' => 1, 'turns' => []]);
     }
@@ -100,7 +100,7 @@ class GameApiTest extends TestCase
     {
         $game = $this->makeGame();
 
-        $this->postJson("/api/games/{$game->id}/turns", $this->turnPayload(1))
+        $this->postJson("/api/games/{$game->public_id}/turns", $this->turnPayload(1))
             ->assertOk()
             ->assertExactJson(['ok' => true, 'current_turn' => 2]);
 
@@ -121,13 +121,13 @@ class GameApiTest extends TestCase
         $game = $this->makeGame();
 
         // Stale commit (game is on turn 1, client posts turn 2).
-        $this->postJson("/api/games/{$game->id}/turns", $this->turnPayload(2))
+        $this->postJson("/api/games/{$game->public_id}/turns", $this->turnPayload(2))
             ->assertStatus(409)
             ->assertJson(['ok' => false, 'current_turn' => 1]);
 
         // Duplicate commit of an already-stored turn.
-        $this->postJson("/api/games/{$game->id}/turns", $this->turnPayload(1))->assertOk();
-        $this->postJson("/api/games/{$game->id}/turns", $this->turnPayload(1))
+        $this->postJson("/api/games/{$game->public_id}/turns", $this->turnPayload(1))->assertOk();
+        $this->postJson("/api/games/{$game->public_id}/turns", $this->turnPayload(1))
             ->assertStatus(409)
             ->assertJson(['ok' => false, 'current_turn' => 2]);
 
@@ -138,7 +138,7 @@ class GameApiTest extends TestCase
     {
         $game = $this->makeGame(['status' => 'finished', 'winner' => 'Red']);
 
-        $this->postJson("/api/games/{$game->id}/turns", $this->turnPayload(1))
+        $this->postJson("/api/games/{$game->public_id}/turns", $this->turnPayload(1))
             ->assertStatus(409)
             ->assertJson(['ok' => false, 'error' => 'game_finished']);
 
@@ -149,7 +149,7 @@ class GameApiTest extends TestCase
     {
         $game = $this->makeGame();
 
-        $this->postJson("/api/games/{$game->id}/turns", $this->turnPayload(1, [
+        $this->postJson("/api/games/{$game->public_id}/turns", $this->turnPayload(1, [
             'game_over' => true,
             'winner' => 'Blue',
         ]))->assertOk();
@@ -163,10 +163,10 @@ class GameApiTest extends TestCase
     {
         $game = $this->makeGame();
         foreach ([1, 2, 3] as $n) {
-            $this->postJson("/api/games/{$game->id}/turns", $this->turnPayload($n))->assertOk();
+            $this->postJson("/api/games/{$game->public_id}/turns", $this->turnPayload($n))->assertOk();
         }
 
-        $response = $this->getJson("/api/games/{$game->id}/turns?after=1");
+        $response = $this->getJson("/api/games/{$game->public_id}/turns?after=1");
 
         $response->assertOk();
         $turns = $response->json();
@@ -178,7 +178,7 @@ class GameApiTest extends TestCase
     {
         $game = $this->makeGame();
 
-        $this->postJson("/api/games/{$game->id}/turns", ['number' => 1])
+        $this->postJson("/api/games/{$game->public_id}/turns", ['number' => 1])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['commands', 'snapshot_after', 'state_hash', 'player_position']);
     }
