@@ -14,8 +14,8 @@ import { Hud } from './hud.js';
 import { InputRecorder } from './input.js';
 import { ReplayPlayer } from './replay.js';
 import {
-    ReplayBrowser, mountReplayButton, showNetBanner, hideNetBanner,
-    showReplayFrame, hideReplayFrame,
+    ReplayBrowser, mountReplayButton, mountLinkActions, showNetBanner,
+    hideNetBanner, showReplayFrame, hideReplayFrame,
 } from './replay-ui.js';
 import { fetchGame, fetchTurnsAfter, postTurn } from './api.js';
 
@@ -69,12 +69,39 @@ async function boot() {
     window.addEventListener('resize', resize);
     resize();
 
-    // ---- Rebuild recorded history (silent fast-forward; replays live at
-    //      /games/{id}/replay/{turn} via the Replays button) -----------------
+    // ---- Rebuild recorded history --------------------------------------------
+    // Everything up to the player's own last move fast-forwards silently;
+    // whatever happened SINCE then (the moves they haven't seen) plays back
+    // cinematically before their turn — the async replay feed.
+    const remote = game.mode === 'remote';
+    const myPosition = window.PLAYER_POSITION;
+
     sim.drainEvents();
     if (game.turns.length > 0) {
-        replayer.fastForward(game.turns);
+        let cinematic = [];
+        if (remote && myPosition != null) {
+            const lastMine = game.turns.reduce(
+                (m, t) => (t.player_position === myPosition ? Math.max(m, t.number) : m), 0,
+            );
+            // Cap the catch-up replay so a long-untouched game stays watchable.
+            const from = Math.max(lastMine + 1, game.turns.length - 5);
+            cinematic = game.turns.filter((t) => t.number >= from);
+        }
+        const instant = game.turns.slice(0, game.turns.length - cinematic.length);
+        replayer.fastForward(instant);
         renderer.handleEvents([]); // ensure renderer observes rebuilt terrain
+
+        if (cinematic.length > 0) {
+            const teamOf = (t) => config.teams[t.player_position]?.name ?? `Team ${t.player_position + 1}`;
+            const frameOpts = { onSkip: () => replayer.skip() };
+            showReplayFrame('', frameOpts);
+            await replayer.play(
+                cinematic,
+                (t) => { showReplayFrame(`${teamOf(t)} · Turn ${t.number}`, frameOpts); hud.update(sim.state, sim.phase); },
+                () => hud.update(sim.state, sim.phase),
+            );
+            hideReplayFrame();
+        }
     }
     if (game.snapshot && sim.stateHash() !== undefined && game.turns.length > 0) {
         // Determinism cross-check: log-only in v1.
@@ -98,10 +125,9 @@ async function boot() {
         latestTurn: () => committedTurns,
         inLiveTurn: () => inLiveTurn,
     });
+    mountLinkActions({ spectateUrl: window.SPECTATE_URL, linksUrl: window.LINKS_URL });
 
     // Remote mode: this client owns one seat (or none — spectator).
-    const remote = game.mode === 'remote';
-    const myPosition = window.PLAYER_POSITION;
     const myToken = window.PLAYER_TOKEN;
     const baseTitle = document.title;
 
@@ -129,12 +155,15 @@ async function boot() {
             if (!arrived) return; // fetch failure already surfaced
             // replayer.play() runs beginTurn itself — calling it here too would
             // advance the team rotation twice and desync the replay.
-            for (const t of arrived) {
-                showReplayFrame(`${teamName(t.player_position)} · Turn ${t.number}`);
-                await replayer.play([t], () => hud.update(sim.state, sim.phase), () => hud.update(sim.state, sim.phase));
-                committedTurns = t.number;
-            }
+            const frameOpts = { onSkip: () => replayer.skip() };
+            showReplayFrame('', frameOpts);
+            await replayer.play(
+                arrived,
+                (t) => { showReplayFrame(`${teamName(t.player_position)} · Turn ${t.number}`, frameOpts); hud.update(sim.state, sim.phase); },
+                () => hud.update(sim.state, sim.phase),
+            );
             hideReplayFrame();
+            committedTurns = arrived[arrived.length - 1].number;
             continue;
         }
 

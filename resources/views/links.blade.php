@@ -41,7 +41,8 @@
 
         <p class="lobby-hint">
             Bookmark this page to find everything again:
-            <a href="{{ route('games.links', ['game' => $game, 'key' => $game->share_key]) }}">this links page</a>.
+            <a href="{{ route('games.links', ['game' => $game, 'key' => $game->share_key]) }}">this links page</a>
+            · or start another game in the <a href="{{ route('lobby') }}">lobby</a>.
         </p>
 
         @if ($game->mode !== 'remote')

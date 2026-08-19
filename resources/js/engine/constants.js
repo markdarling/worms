@@ -30,7 +30,8 @@ export const C = {
   BACKFLIP_VY: -190,     // apex ~52px, lands at 192px/s: just under fall-damage threshold
 
   // Fall damage: |velocity| at landing above threshold hurts; scales with excess.
-  FALL_DMG_THRESHOLD: 200, // px/s (~57px free fall)
+  FALL_DMG_THRESHOLD: 280, // px/s (~112px free fall) — an ordinary jump off a
+                           // ledge lands safely; real cliff drops still hurt
   FALL_DMG_DIVISOR: 4,     // dmg = floor(excess / divisor)
   FALL_DMG_MAX: 50,
 

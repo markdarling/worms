@@ -29,7 +29,7 @@ const WEAPONS = [
   { id: 'dynamite', label: 'Dynamite' },
   { id: 'airstrike', label: 'Air Strike' },
   { id: 'teleport', label: 'Teleport' },
-  { id: 'skip', label: 'Skip Go' },
+  // 'skip' is not listed as an icon — the labelled Skip Go button covers it.
 ];
 
 const FUSE_WEAPONS = new Set(['grenade', 'cluster']);
@@ -41,7 +41,6 @@ const KEYBINDINGS = [
   ['↑ ↓', 'aim'],
   ['Space', 'hold: charge · release: fire'],
   ['1–5', 'grenade fuse'],
-  ['Tab / right-click', 'weapon panel'],
   ['Click', 'target (teleport / air strike)'],
   ['Drag / edges', 'pan camera'],
 ];
@@ -100,7 +99,7 @@ export class Hud {
 
     // ---- Stamina (left) ----
     const stam = el('div', 'hud-stamina', this.root);
-    el('div', 'hud-stamina__label', stam, 'STAMINA');
+    n.stamLabel = el('div', 'hud-stamina__label', stam, 'STAMINA');
     const sbar = el('div', 'hud-stamina__bar', stam);
     n.stamFill = el('div', 'hud-stamina__fill', sbar);
     n.retreatFill = el('div', 'hud-stamina__retreat', sbar);
@@ -212,6 +211,9 @@ export class Hud {
       n.stamFill.style.width = `${stamina * 80}%`; // main = 80% of track (100/125)
       n.stamFill.classList.toggle('is-low', stamina <= 0.2);
       n.stamFill.classList.toggle('is-mid', stamina > 0.2 && stamina <= 0.5);
+      // Numeric readout — discrete costs (jump -10, backflip -15) are hard to
+      // read from an 80%-of-track fill alone.
+      n.stamLabel.textContent = `STAMINA ${Math.ceil(state.stamina ?? 0)}`;
     }
     if (retreat !== L.retreat) {
       L.retreat = retreat;
@@ -336,9 +338,10 @@ export class Hud {
   // Panel / overlays / replay
   // -----------------------------------------------------------------------
 
-  toggleWeaponPanel(force) {
-    this._n.panel.classList.toggle('is-open', force);
-    return this._n.panel.classList.contains('is-open');
+  // The weapon dock is always open (horizontal bar across the bottom) — the
+  // old slide-in toggle is a no-op kept for call-site compatibility.
+  toggleWeaponPanel() {
+    return true;
   }
 
   setGameName(name) {

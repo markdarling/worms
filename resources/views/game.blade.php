@@ -11,6 +11,8 @@
         window.REPLAY_TURN = {{ ($replayTurn ?? null) !== null ? (int) $replayTurn : 'null' }};
         window.PLAYER_TOKEN = @json($playerToken ?? null);
         window.PLAYER_POSITION = @json($playerPosition ?? null);
+        window.SPECTATE_URL = @json(route('games.show', $game));
+        window.LINKS_URL = @json($linksUrl ?? null);
     </script>
     @vite(['resources/css/game.css', 'resources/js/game/main.js'])
 </head>

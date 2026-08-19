@@ -227,7 +227,7 @@ body:has(#game-canvas) {
 .hud-stamina {
   position: absolute;
   left: 12px;
-  bottom: 96px;
+  bottom: 140px;
   padding: 6px 10px 8px;
   width: 200px;
 }
@@ -301,7 +301,7 @@ body:has(#game-canvas) {
 .hud-power {
   position: absolute;
   left: 12px;
-  bottom: 148px;
+  bottom: 196px;
   width: 44px;
   padding: 8px 6px;
   display: flex;
@@ -352,7 +352,7 @@ body:has(#game-canvas) {
 .hud-teams {
   position: absolute;
   left: 50%;
-  bottom: 12px;
+  bottom: 106px; /* lifted above the always-open weapon dock */
   transform: translateX(-50%);
   padding: 8px 12px;
   display: flex;
@@ -360,6 +360,8 @@ body:has(#game-canvas) {
   gap: 5px;
   min-width: 280px;
 }
+
+body.replay-mode .hud-teams { bottom: 12px; } /* dock hidden during replays */
 
 .hud-team {
   display: flex;
@@ -414,19 +416,21 @@ body:has(#game-canvas) {
    Weapon panel (right slide-in)
    ========================================================================== */
 
+/* Always-open horizontal weapon dock across the bottom of the screen. */
 .hud-weapons {
   position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translate(calc(100% + 24px), -50%);
-  transition: transform 0.28s cubic-bezier(0.34, 1.35, 0.5, 1);
-  padding: 10px;
-  width: 196px;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  max-width: calc(100vw - 24px);
 }
 
-.hud-weapons.is-open {
-  transform: translate(0, -50%);
-}
+/* Hide the dock whenever there is nothing to select (replays, spectating). */
+body.replay-mode .hud-weapons { display: none; }
 
 .hud-weapons__title {
   font-size: 12px;
@@ -434,19 +438,22 @@ body:has(#game-canvas) {
   letter-spacing: 1px;
   text-transform: uppercase;
   text-align: center;
-  margin-bottom: 8px;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
 }
 
 .hud-weapons__grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-wrap: nowrap;
   gap: 6px;
 }
 
 .hud-weapon {
   position: relative;
+  width: 46px;
   aspect-ratio: 1;
+  flex: 0 0 auto;
   border: 2px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.45);
@@ -503,7 +510,7 @@ body:has(#game-canvas) {
   display: none;
   align-items: center;
   gap: 4px;
-  margin-top: 8px;
+  flex: 0 0 auto;
 }
 
 .hud-fuse.is-visible {
@@ -541,8 +548,8 @@ body:has(#game-canvas) {
 
 .hud-skipbtn {
   display: block;
-  width: 100%;
-  margin-top: 8px;
+  flex: 0 0 auto;
+  white-space: nowrap;
   padding: 7px 0;
   font-family: var(--w-font);
   font-size: 12px;

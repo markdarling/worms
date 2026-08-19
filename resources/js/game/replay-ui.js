@@ -31,13 +31,18 @@ const BAR_CSS = `
 .replay-bar .replay-label small { display: block; font-size: 10px; opacity: 0.7; }
 .replay-bar .replay-speed.on { background: #e8b445; color: #1b1408; }
 .replay-bar .replay-copied { background: #45c860 !important; color: #06220c; }
-.replay-open-btn {
-    position: fixed; right: 18px; bottom: 62px; z-index: 55;
+/* Top-right actions cluster, stacked under the turn counter. */
+.top-actions {
+    position: fixed; right: 12px; top: 62px; z-index: 55;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+}
+.top-actions > * {
+    display: inline-block; text-decoration: none;
     background: rgba(10, 14, 22, 0.82); color: #fff; border: 2px solid rgba(255,255,255,0.18);
-    border-radius: 12px; padding: 9px 14px; font: bold 13px 'Arial Rounded MT Bold', 'Verdana', sans-serif;
+    border-radius: 10px; padding: 6px 12px; font: bold 12px 'Arial Rounded MT Bold', 'Verdana', sans-serif;
     cursor: pointer; pointer-events: auto;
 }
-.replay-open-btn:hover { background: rgba(30, 40, 58, 0.92); }
+.top-actions > *:hover { background: rgba(30, 40, 58, 0.92); }
 .net-banner {
     position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
     background: rgba(10, 14, 22, 0.88); border: 2px solid rgba(255,255,255,0.18);
@@ -81,6 +86,12 @@ const BAR_CSS = `
 }
 .replay-badge .replay-word { font-size: 15px; font-weight: bold; letter-spacing: 0.22em; }
 .replay-badge .replay-sub { font-size: 12px; opacity: 0.75; }
+.replay-badge .replay-skip {
+    pointer-events: auto; cursor: pointer; margin-left: 6px;
+    background: rgba(255, 255, 255, 0.14); color: #fff; border: 0;
+    border-radius: 8px; padding: 5px 11px; font: bold 12px inherit;
+}
+.replay-badge .replay-skip:hover { background: rgba(255, 255, 255, 0.28); }
 `;
 
 function injectStyles() {
@@ -98,10 +109,20 @@ function injectStyles() {
 // end up in a shareable replay URL.
 const originKey = (gameId) => `worms-replay-origin:${gameId}`;
 
-export function mountReplayButton({ gameId, latestTurn, inLiveTurn }) {
+let topActionsEl = null;
+function topActions() {
     injectStyles();
+    if (!topActionsEl) {
+        topActionsEl = document.createElement('div');
+        topActionsEl.className = 'top-actions';
+        document.body.appendChild(topActionsEl);
+    }
+    return topActionsEl;
+}
+
+export function mountReplayButton({ gameId, latestTurn, inLiveTurn }) {
     const btn = document.createElement('button');
-    btn.className = 'replay-open-btn';
+    btn.type = 'button';
     btn.textContent = '📽 Replays';
     btn.addEventListener('click', () => {
         const n = latestTurn?.() ?? 0;
@@ -110,7 +131,29 @@ export function mountReplayButton({ gameId, latestTurn, inLiveTurn }) {
         try { sessionStorage.setItem(originKey(gameId), location.pathname); } catch { /* ignore */ }
         location.href = `/games/${gameId}/replay/${n}`;
     });
-    document.body.appendChild(btn);
+    topActions().appendChild(btn);
+}
+
+// Spectator-link copy + (seat holders only) a link to the game's links page,
+// stacked with the Replays button under the turn counter.
+export function mountLinkActions({ spectateUrl, linksUrl }) {
+    const root = topActions();
+    if (spectateUrl) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = '👁 Spectator link';
+        btn.addEventListener('click', () => {
+            btn.textContent = copyText(spectateUrl) ? '✓ Copied' : 'Copy failed';
+            setTimeout(() => { btn.textContent = '👁 Spectator link'; }, 1500);
+        });
+        root.appendChild(btn);
+    }
+    if (linksUrl) {
+        const a = document.createElement('a');
+        a.href = linksUrl;
+        a.textContent = '🔗 All game links';
+        root.appendChild(a);
+    }
 }
 
 // Pulsing status banner in the game chrome. kind: 'wait' (amber, default)
@@ -134,21 +177,26 @@ export function hideNetBanner() {
 // Killcam-style "this is a recording" treatment: red viewfinder frame around
 // the whole viewport + pulsing record-dot badge reading REPLAY, with a
 // subtitle for whose turn is playing. Call repeatedly to update the subtitle.
+// Pass { onSkip } to offer a Skip button (catch-up and arrival replays).
 let replayFrameEls = null;
-export function showReplayFrame(subtitle = '') {
+export function showReplayFrame(subtitle = '', { onSkip } = {}) {
     injectStyles();
     if (!replayFrameEls) {
         const frame = document.createElement('div');
         frame.className = 'replay-frame';
         const badge = document.createElement('div');
         badge.className = 'replay-badge';
-        badge.innerHTML = '<span class="rec-dot"></span><span class="replay-word">REPLAY</span><span class="replay-sub"></span>';
+        badge.innerHTML = '<span class="rec-dot"></span><span class="replay-word">REPLAY</span><span class="replay-sub"></span>'
+            + '<button type="button" class="replay-skip">Skip ≫</button>';
         document.body.append(frame, badge);
-        replayFrameEls = { frame, badge };
+        replayFrameEls = { frame, badge, skipBtn: badge.querySelector('.replay-skip') };
     }
     replayFrameEls.frame.style.display = 'block';
     replayFrameEls.badge.style.display = 'flex';
     replayFrameEls.badge.querySelector('.replay-sub').textContent = subtitle;
+    const { skipBtn } = replayFrameEls;
+    skipBtn.style.display = onSkip ? 'inline-block' : 'none';
+    skipBtn.onclick = onSkip ?? null;
 }
 export function hideReplayFrame() {
     if (!replayFrameEls) return;

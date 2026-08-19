@@ -97,11 +97,19 @@ class GameController extends Controller
             'replayTurn' => null,
             'playerToken' => $player->token,
             'playerPosition' => $player->position,
+            // Seat holders can reach the links page to grab the other links.
+            'linksUrl' => $this->linksUrl($game),
         ]);
     }
 
     public function show(Game $game, ?int $turn = null): View
     {
         return view('game', ['game' => $game, 'replayTurn' => $turn]);
+    }
+
+    /** Links page URL, only ever exposed to seat holders (not spectators). */
+    private function linksUrl(Game $game): string
+    {
+        return route('games.links', ['game' => $game, 'key' => $game->share_key]);
     }
 }
