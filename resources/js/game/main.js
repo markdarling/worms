@@ -13,7 +13,10 @@ import { Camera } from './camera.js';
 import { Hud } from './hud.js';
 import { InputRecorder } from './input.js';
 import { ReplayPlayer } from './replay.js';
-import { ReplayBrowser, mountReplayButton, showNetBanner, hideNetBanner, showTurnGate } from './replay-ui.js';
+import {
+    ReplayBrowser, mountReplayButton, showNetBanner, hideNetBanner,
+    showReplayFrame, hideReplayFrame,
+} from './replay-ui.js';
 import { fetchGame, fetchTurnsAfter, postTurn } from './api.js';
 
 const TICK_MS = 1000 / 60;
@@ -36,7 +39,7 @@ async function boot() {
         const hud = new Hud(hudRoot, { onWeaponSelect() {}, onFuseSelect() {}, onSkip() {} });
         hud.setGameName?.(game.name);
         hud.setTeams?.(config.teams);
-        const browser = new ReplayBrowser({ canvas, config, game, hud });
+        const browser = new ReplayBrowser({ canvas, config, game, hud, gameId });
         await browser.start(window.REPLAY_TURN);
         return;
     }
@@ -106,6 +109,7 @@ async function boot() {
     while (running) {
         if (sim.phase === 'game-over') {
             hideNetBanner();
+            startIdleRender(sim, renderer, hud); // keep the scene alive behind the banner
             hud.showGameOver(sim.winner === 'draw' ? null : teamName(sim.winner));
             break;
         }
@@ -126,9 +130,11 @@ async function boot() {
             // replayer.play() runs beginTurn itself — calling it here too would
             // advance the team rotation twice and desync the replay.
             for (const t of arrived) {
+                showReplayFrame(`${teamName(t.player_position)} · Turn ${t.number}`);
                 await replayer.play([t], () => hud.update(sim.state, sim.phase), () => hud.update(sim.state, sim.phase));
                 committedTurns = t.number;
             }
+            hideReplayFrame();
             continue;
         }
 
@@ -137,9 +143,10 @@ async function boot() {
         const activeTeam = sim.state.worms.find((w) => w.id === sim.state.activeWormId)?.teamIndex ?? 0;
 
         if (remote) {
+            // Your turn starts immediately — signalled in the game chrome
+            // (green banner + tab title), not a blocking overlay.
             document.title = `🔴 Your turn! — ${game.name}`;
-            await showTurnGate(teamName(activeTeam));
-            document.title = baseTitle;
+            showNetBanner(`Your turn — ${teamName(activeTeam)}`, 'turn');
         } else {
             await new Promise((resolve) => hud.showPassDevice(teamName(activeTeam), resolve));
         }
@@ -150,6 +157,10 @@ async function boot() {
         await runLiveTurn(sim, renderer, camera, hud, input);
         inLiveTurn = false;
         input.enabled = false;
+        if (remote) {
+            hideNetBanner();
+            document.title = baseTitle;
+        }
 
         // Commit the recorded turn.
         const gameOver = sim.phase === 'game-over';
@@ -179,12 +190,9 @@ async function boot() {
     }
 }
 
-// Poll for the opponent's turn(s). Keeps the scene rendering (water, idle
-// animations) while waiting. Resolves with the new turn records, or null on a
-// persistent fetch failure (already surfaced to the user).
-async function waitForTurns(gameId, expectedTurn, waitingOnName, sim, renderer, hud) {
-    showNetBanner(`Waiting for ${waitingOnName}…`);
-
+// Keep the scene rendering (water, clouds, idle animations) while no other
+// loop is drawing — behind overlays and while waiting. Returns a stop fn.
+function startIdleRender(sim, renderer, hud) {
     let stop = false;
     let last = performance.now();
     const idle = (now) => {
@@ -196,6 +204,15 @@ async function waitForTurns(gameId, expectedTurn, waitingOnName, sim, renderer, 
         requestAnimationFrame(idle);
     };
     requestAnimationFrame(idle);
+    return () => { stop = true; };
+}
+
+// Poll for the opponent's turn(s). Keeps the scene rendering while waiting.
+// Resolves with the new turn records, or null on a persistent fetch failure
+// (already surfaced to the user).
+async function waitForTurns(gameId, expectedTurn, waitingOnName, sim, renderer, hud) {
+    showNetBanner(`Waiting for ${waitingOnName}…`);
+    const stopIdle = startIdleRender(sim, renderer, hud);
 
     let failures = 0;
     try {
@@ -213,7 +230,7 @@ async function waitForTurns(gameId, expectedTurn, waitingOnName, sim, renderer, 
             await new Promise((r) => setTimeout(r, 5000));
         }
     } finally {
-        stop = true;
+        stopIdle();
         hideNetBanner();
     }
 }

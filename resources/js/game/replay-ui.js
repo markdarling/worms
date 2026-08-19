@@ -50,21 +50,37 @@ const BAR_CSS = `
     animation: net-pulse 1.4s ease-in-out infinite;
 }
 @keyframes net-pulse { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
-.turn-gate {
-    position: fixed; inset: 0; z-index: 70; display: grid; place-items: center;
-    background: rgba(8, 10, 16, 0.55); pointer-events: auto;
+.net-banner--turn { border-color: rgba(94, 200, 60, 0.85); }
+.net-banner--turn .net-dot { background: #6ee84a; box-shadow: 0 0 9px rgba(110, 232, 74, 0.9); }
+.net-banner--turn .net-text { letter-spacing: 0.06em; }
+/* Killcam-style replay treatment: red viewfinder frame + corner brackets +
+   pulsing record dot with a REPLAY badge. Unmistakably "a recording". */
+.replay-frame {
+    position: fixed; inset: 10px; z-index: 57; pointer-events: none;
+    border: 3px solid rgba(232, 69, 69, 0.85); border-radius: 14px;
+    box-shadow: inset 0 0 46px rgba(232, 69, 69, 0.10);
 }
-.turn-gate-card {
-    background: #fdf6e3; color: #2b2028; border: 3px solid #2b2028; border-radius: 16px;
-    padding: 28px 40px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    font-family: 'Arial Rounded MT Bold', 'Verdana', sans-serif;
+.replay-frame::before, .replay-frame::after {
+    content: ''; position: absolute; width: 26px; height: 26px;
+    border: 4px solid #ff5252;
 }
-.turn-gate-card small { display: block; letter-spacing: 0.12em; opacity: 0.6; font-size: 11px; }
-.turn-gate-card h2 { margin: 6px 0 16px; font-size: 30px; }
-.turn-gate-card button {
-    background: linear-gradient(180deg, #7ede4f, #45c828); color: #fff; border: 2px solid #2f7edb;
-    border-radius: 10px; padding: 10px 26px; font: bold 16px inherit; cursor: pointer;
+.replay-frame::before { top: -4px; left: -4px; border-right: 0; border-bottom: 0; border-radius: 14px 0 0 0; }
+.replay-frame::after { bottom: -4px; right: -4px; border-left: 0; border-top: 0; border-radius: 0 0 14px 0; }
+.replay-badge {
+    position: fixed; top: 24px; left: 50%; transform: translateX(-50%) translateY(64px);
+    z-index: 58; pointer-events: none;
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(10, 14, 22, 0.88); border: 2px solid rgba(232, 69, 69, 0.7);
+    border-radius: 11px; padding: 8px 16px;
+    font-family: 'Arial Rounded MT Bold', 'Verdana', sans-serif; color: #fff;
 }
+.replay-badge .rec-dot {
+    width: 11px; height: 11px; border-radius: 50%; background: #ff4040;
+    box-shadow: 0 0 9px rgba(255, 64, 64, 0.9);
+    animation: net-pulse 1.2s ease-in-out infinite;
+}
+.replay-badge .replay-word { font-size: 15px; font-weight: bold; letter-spacing: 0.22em; }
+.replay-badge .replay-sub { font-size: 12px; opacity: 0.75; }
 `;
 
 function injectStyles() {
@@ -76,7 +92,12 @@ function injectStyles() {
 }
 
 // Floating "Replays" button for the live game view. latestTurn is a getter so
-// turns committed during this session immediately become browsable.
+// turns committed during this session immediately become browsable. Where we
+// came from (seat link / spectate page) is remembered in sessionStorage so
+// "Back to game" can return to the right identity — and seat tokens never
+// end up in a shareable replay URL.
+const originKey = (gameId) => `worms-replay-origin:${gameId}`;
+
 export function mountReplayButton({ gameId, latestTurn, inLiveTurn }) {
     injectStyles();
     const btn = document.createElement('button');
@@ -86,21 +107,23 @@ export function mountReplayButton({ gameId, latestTurn, inLiveTurn }) {
         const n = latestTurn?.() ?? 0;
         if (n < 1) { alert('No turns have been played yet.'); return; }
         if (inLiveTurn?.() && !confirm('Leave the current turn? Unfinished moves will be lost.')) return;
+        try { sessionStorage.setItem(originKey(gameId), location.pathname); } catch { /* ignore */ }
         location.href = `/games/${gameId}/replay/${n}`;
     });
     document.body.appendChild(btn);
 }
 
-// Pulsing status banner for remote games ("Waiting for Blue Team…").
+// Pulsing status banner in the game chrome. kind: 'wait' (amber, default)
+// for "Waiting for Blue…", 'turn' (green) for "Your turn".
 let netBannerEl = null;
-export function showNetBanner(text) {
+export function showNetBanner(text, kind = 'wait') {
     injectStyles();
     if (!netBannerEl) {
         netBannerEl = document.createElement('div');
-        netBannerEl.className = 'net-banner';
         netBannerEl.innerHTML = '<span class="net-dot"></span><span class="net-text"></span>';
         document.body.appendChild(netBannerEl);
     }
+    netBannerEl.className = kind === 'turn' ? 'net-banner net-banner--turn' : 'net-banner';
     netBannerEl.querySelector('.net-text').textContent = text;
     netBannerEl.style.display = 'flex';
 }
@@ -108,45 +131,53 @@ export function hideNetBanner() {
     if (netBannerEl) netBannerEl.style.display = 'none';
 }
 
-// "You're up!" gate before a remote player's own turn — an explicit start
-// click (also satisfies the browser's user-gesture rule for audio).
-export function showTurnGate(teamName) {
+// Killcam-style "this is a recording" treatment: red viewfinder frame around
+// the whole viewport + pulsing record-dot badge reading REPLAY, with a
+// subtitle for whose turn is playing. Call repeatedly to update the subtitle.
+let replayFrameEls = null;
+export function showReplayFrame(subtitle = '') {
     injectStyles();
-    return new Promise((resolve) => {
-        const gate = document.createElement('div');
-        gate.className = 'turn-gate';
-        gate.innerHTML = `
-            <div class="turn-gate-card">
-                <small>IT'S YOUR TURN</small>
-                <h2></h2>
-                <button type="button">Take the turn!</button>
-            </div>`;
-        gate.querySelector('h2').textContent = teamName;
-        gate.querySelector('button').addEventListener('click', () => {
-            gate.remove();
-            resolve();
-        });
-        document.body.appendChild(gate);
-    });
+    if (!replayFrameEls) {
+        const frame = document.createElement('div');
+        frame.className = 'replay-frame';
+        const badge = document.createElement('div');
+        badge.className = 'replay-badge';
+        badge.innerHTML = '<span class="rec-dot"></span><span class="replay-word">REPLAY</span><span class="replay-sub"></span>';
+        document.body.append(frame, badge);
+        replayFrameEls = { frame, badge };
+    }
+    replayFrameEls.frame.style.display = 'block';
+    replayFrameEls.badge.style.display = 'flex';
+    replayFrameEls.badge.querySelector('.replay-sub').textContent = subtitle;
+}
+export function hideReplayFrame() {
+    if (!replayFrameEls) return;
+    replayFrameEls.frame.style.display = 'none';
+    replayFrameEls.badge.style.display = 'none';
 }
 
 export class ReplayBrowser {
-    constructor({ canvas, config, game, hud }) {
+    constructor({ canvas, config, game, hud, gameId }) {
         this.canvas = canvas;
         this.config = config;
-        this.game = game;         // { id, name, turns: [...] } from the API
+        this.game = game;              // { name, turns: [...] } from the API
+        this.gameId = gameId ?? game.id; // public URL id (window.GAME_ID)
         this.hud = hud;
         this.turn = 1;
         this._playing = false;
         this._player = null;
         this._idleRaf = 0;
         this._speed = 1;
+        // Where the player entered the replay browser from (their seat link or
+        // the spectate page). Absent on a direct deep-link — no back button.
+        try { this.originPath = sessionStorage.getItem(originKey(this.gameId)); } catch { this.originPath = null; }
         injectStyles();
         this._buildBar();
     }
 
     async start(turnN) {
         document.body.classList.add('replay-mode');
+        showReplayFrame();
         await this._show(clamp(turnN, 1, this.game.turns.length));
     }
 
@@ -162,7 +193,7 @@ export class ReplayBrowser {
             <button data-act="speed2" class="replay-speed">2×</button>
             <button data-act="speed4" class="replay-speed">4×</button>
             <button data-act="share" title="Copy a link to this turn">🔗 Share</button>
-            <button data-act="exit">Back to game</button>
+            ${this.originPath ? '<button data-act="exit">Back to game</button>' : ''}
         `;
         bar.addEventListener('click', (e) => {
             const act = e.target?.dataset?.act;
@@ -172,7 +203,7 @@ export class ReplayBrowser {
             else if (act === 'again') this._show(this.turn);
             else if (act.startsWith('speed')) this._setSpeed(Number(act.slice(5)), e.target);
             else if (act === 'share') this._share(e.target);
-            else if (act === 'exit') location.href = `/games/${this.game.id}`;
+            else if (act === 'exit') location.href = this.originPath;
         });
         document.body.appendChild(bar);
         this.bar = bar;
@@ -187,7 +218,7 @@ export class ReplayBrowser {
     }
 
     async _share(btnEl) {
-        const url = `${location.origin}/games/${this.game.id}/replay/${this.turn}`;
+        const url = `${location.origin}/games/${this.gameId}/replay/${this.turn}`;
         if (copyText(url)) {
             btnEl.classList.add('replay-copied');
             btnEl.textContent = '✓ Copied';
@@ -209,10 +240,11 @@ export class ReplayBrowser {
         if (this._playing) this._player?.skip();
         cancelAnimationFrame(this._idleRaf);
         this.turn = n;
-        history.replaceState(null, '', `/games/${this.game.id}/replay/${n}`);
+        history.replaceState(null, '', `/games/${this.gameId}/replay/${n}`);
 
         this.$('[data-el="title"]').textContent = `Turn ${n} / ${turns.length}`;
         this.$('[data-el="sub"]').textContent = this._teamNameFor(turns[n - 1]);
+        showReplayFrame(`${this._teamNameFor(turns[n - 1])} · Turn ${n}`);
         this.$('[data-act="prev"]').disabled = n <= 1;
         this.$('[data-act="next"]').disabled = n >= turns.length;
 
