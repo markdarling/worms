@@ -82,3 +82,109 @@
   color: #444;
   border-color: #8a8a8a;
 }
+
+/* Analytics tab */
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 0 0 16px;
+}
+
+.admin-tabs a {
+  padding: 7px 18px;
+  border-radius: 999px;
+  border: 2px solid var(--w-ink, #2b2028);
+  background: rgba(255, 255, 255, 0.55);
+  color: #2b2028;
+  font-weight: bold;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.admin-tabs a.is-active {
+  background: #2b2028;
+  color: #fdf6e3;
+}
+
+.admin-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.admin-stat {
+  flex: 1 1 120px;
+  text-align: center;
+  padding: 12px 8px;
+  border: 2px solid rgba(43, 32, 40, 0.15);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.admin-stat strong {
+  display: block;
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.admin-stat span {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.admin-chart {
+  margin: 6px 0 22px;
+}
+
+.admin-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.admin-chart .baseline {
+  stroke: rgba(43, 32, 40, 0.25);
+  stroke-width: 1;
+}
+
+.admin-chart .bar rect { transition: opacity 0.1s; }
+.admin-chart .bar:hover rect { opacity: 0.75; }
+
+.admin-chart .bar-label {
+  font: bold 12px var(--w-font, sans-serif);
+  fill: #2b2028;
+}
+
+.admin-chart .axis-label {
+  font: 10px var(--w-font, sans-serif);
+  fill: rgba(43, 32, 40, 0.55);
+}
+
+.lobby-card h2 small {
+  font-size: 12px;
+  opacity: 0.6;
+  font-weight: normal;
+}
+
+.admin-table summary {
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.admin-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-table th, .admin-table td {
+  text-align: left;
+  padding: 5px 10px;
+  border-bottom: 1px solid rgba(43, 32, 40, 0.12);
+}

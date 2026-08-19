@@ -59,6 +59,49 @@ class AdminController extends Controller
         return redirect()->route('admin');
     }
 
+    public function analytics(Request $request): View|RedirectResponse
+    {
+        if (Setting::get(self::PASSWORD_KEY) === null || ! $request->session()->get('is_admin', false)) {
+            return redirect()->route('admin');
+        }
+
+        $days = 30;
+        $from = now()->subDays($days - 1)->startOfDay();
+
+        $gamesByDay = Game::where('created_at', '>=', $from)
+            ->selectRaw('date(created_at) as d, count(*) as c')
+            ->groupBy('d')->pluck('c', 'd');
+        $turnsByDay = \App\Models\Turn::where('created_at', '>=', $from)
+            ->selectRaw('date(created_at) as d, count(*) as c')
+            ->groupBy('d')->pluck('c', 'd');
+
+        // Dense series: every day present, zero-filled, oldest first.
+        $series = [];
+        for ($i = 0; $i < $days; $i++) {
+            $day = $from->copy()->addDays($i);
+            $key = $day->toDateString();
+            $series[] = [
+                'date' => $key,
+                'label' => $day->format('j M'),
+                'games' => (int) ($gamesByDay[$key] ?? 0),
+                'turns' => (int) ($turnsByDay[$key] ?? 0),
+            ];
+        }
+
+        return view('admin-analytics', [
+            'series' => $series,
+            'totals' => [
+                'games' => Game::count(),
+                'active' => Game::where('status', 'active')->count(),
+                'finished' => Game::where('status', 'finished')->count(),
+                'turns' => \App\Models\Turn::count(),
+                'avgTurns' => Game::count() > 0
+                    ? round(\App\Models\Turn::count() / Game::count(), 1)
+                    : 0,
+            ],
+        ]);
+    }
+
     public function logout(Request $request): RedirectResponse
     {
         $request->session()->forget('is_admin');

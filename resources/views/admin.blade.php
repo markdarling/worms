@@ -7,6 +7,11 @@
     <h1>All games</h1>
     <p class="lobby-tagline">Ordered by recent activity · Open drops into spectator view.</p>
 
+    <nav class="admin-tabs">
+        <a href="{{ route('admin') }}" class="is-active">Games</a>
+        <a href="{{ route('admin.analytics') }}">Analytics</a>
+    </nav>
+
     <div class="lobby-card">
         @if ($games->isEmpty())
             <p class="lobby-hint">No games yet.</p>

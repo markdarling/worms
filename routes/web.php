@@ -20,6 +20,7 @@ Route::get('/play/{token}', [GameController::class, 'play'])
 // Owner's admin panel: password set on first visit (stored hashed in the
 // settings table — never in code), session-gated, lists all games.
 Route::get('/admin', [\App\Http\Controllers\AdminController::class, 'index'])->name('admin');
+Route::get('/admin/analytics', [\App\Http\Controllers\AdminController::class, 'analytics'])->name('admin.analytics');
 Route::post('/admin/setup', [\App\Http\Controllers\AdminController::class, 'setup'])->name('admin.setup');
 Route::post('/admin/login', [\App\Http\Controllers\AdminController::class, 'login'])->name('admin.login');
 Route::post('/admin/logout', [\App\Http\Controllers\AdminController::class, 'logout'])->name('admin.logout');

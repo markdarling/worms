@@ -55,6 +55,30 @@ class AdminPanelTest extends TestCase
             ->assertSee(route('games.show', $game));
     }
 
+    public function test_analytics_is_gated_and_shows_daily_counts(): void
+    {
+        Setting::put('admin_password_hash', Hash::make('hunter2worms'));
+
+        // Not logged in → bounced to /admin.
+        $this->get('/admin/analytics')->assertRedirect(route('admin'));
+
+        $game = Game::create([
+            'name' => 'Charted', 'seed' => 9, 'config' => ['seed' => 9],
+            'status' => 'active', 'mode' => 'remote',
+        ]);
+        $game->turns()->create([
+            'number' => 1, 'player_position' => 0,
+            'commands' => ['v' => 1], 'snapshot_after' => ['s' => 1], 'state_hash' => 'h',
+        ]);
+
+        $this->post('/admin/login', ['code' => 'hunter2worms']);
+        $this->get('/admin/analytics')->assertOk()
+            ->assertSee('Games created per day')
+            ->assertSee('Turns played per day')
+            ->assertSee('avg turns / game')
+            ->assertSee('<svg', false);
+    }
+
     public function test_games_are_ordered_by_recent_activity(): void
     {
         Setting::put('admin_password_hash', Hash::make('hunter2worms'));
