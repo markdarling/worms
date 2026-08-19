@@ -41,7 +41,8 @@ export const C = {
   WALK_DRAIN_PER_TICK: 0.1, // = 6/s
   JUMP_COST: 10,
   BACKFLIP_COST: 15,
-  RETREAT_IDLE_TICKS: 180,  // 3s of no input in retreat ends the turn
+  RETREAT_TICKS: 300,       // fixed 5s retreat window after every attack —
+                            // identical for all weapons (classic rule)
 
   CHARGE_TIME: 1.2, // s to ramp power 0 -> 1; full charge auto-fires (classic)
 

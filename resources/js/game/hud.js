@@ -193,7 +193,11 @@ export class Hud {
       L.turnText = turnText;
       n.turn.textContent = turnText;
     }
-    const phaseText = PHASE_LABELS[phase] || '';
+    // Retreat shows the fixed countdown (identical window for all weapons).
+    let phaseText = PHASE_LABELS[phase] || '';
+    if (phase === 'retreat' && state.retreatTicks > 0) {
+      phaseText = `Retreat! ${Math.ceil(state.retreatTicks / 60)}s`;
+    }
     if (phaseText !== L.phaseText) {
       L.phaseText = phaseText;
       n.phase.textContent = phaseText;

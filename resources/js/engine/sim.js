@@ -56,6 +56,7 @@ export class Sim {
     this.pendingShots = 0; // >0 = shotgun second shot still owed
     this.idleTicks = 0;
     this.endRetreat = false;
+    this.retreatTicks = 0;
     this.teamPointer = -1;
     this.teamWormPointers = config.teams.map(() => -1);
     this.ammo = config.teams.map(() => ({
@@ -133,6 +134,7 @@ export class Sim {
     sim.charging = snap.charging === 1;
     sim.pendingShots = snap.pendingShots;
     sim.idleTicks = snap.idleTicks;
+    sim.retreatTicks = snap.retreatTicks ?? 0;
     sim.endRetreat = snap.endRetreat === 1;
     sim.teamPointer = snap.teamPointer;
     sim.teamWormPointers = snap.teamWormPointers.slice();
@@ -199,6 +201,7 @@ export class Sim {
     this.pendingShots = 0;
     this.idleTicks = 0;
     this.endRetreat = false;
+    this.retreatTicks = 0;
     this._prev = { fire: false, charge: false, jump: false, backflip: false };
     this.phase = 'move';
     this.events.push({ type: 'turnStart', wormId: this.activeWormId, wind: this.wind });
@@ -248,11 +251,12 @@ export class Sim {
       this.pendingShots = 0;
       this.phase = 'resolving';
     }
-    if (
-      this.phase === 'retreat' && this.pendingShots === 0 &&
-      (this.retreatStamina <= 0 || this.endRetreat || this.idleTicks >= C.RETREAT_IDLE_TICKS)
-    ) {
-      this.phase = 'resolving';
+    // Fixed retreat window: exactly RETREAT_TICKS for every weapon. Running out
+    // of retreat stamina only stops movement, never the clock; firing again
+    // ends the turn early by choice.
+    if (this.phase === 'retreat' && this.pendingShots === 0) {
+      this.retreatTicks--;
+      if (this.endRetreat || this.retreatTicks <= 0) this.phase = 'resolving';
     }
     if (this.phase === 'resolving' && this._settled()) this._finishTurn();
 
@@ -375,6 +379,7 @@ export class Sim {
     this.phase = 'retreat';
     this.pendingShots = 0;
     this.idleTicks = 0;
+    this.retreatTicks = C.RETREAT_TICKS; // the clock starts at the final shot
   }
 
   _stepWorld() {
@@ -390,7 +395,18 @@ export class Sim {
     // Airborne worms (fixed id order).
     for (let i = 0; i < this.worms.length; i++) {
       const worm = this.worms[i];
-      if (!worm.alive || !worm.airborne) continue;
+      if (!worm.alive) continue;
+      // Ground can vanish beneath a standing worm (crater, digging) — re-check
+      // footing every tick so it falls instead of levitating (classic rule).
+      if (!worm.airborne) {
+        if (!P.grounded(this.terrain, worm)) {
+          worm.airborne = true;
+          worm.vx = 0;
+          worm.vy = 0;
+        } else {
+          continue;
+        }
+      }
       const res = P.wormAirStep(this.terrain, worm);
       if (res.landed && res.impact > C.FALL_DMG_THRESHOLD) {
         const amount = Math.min(
@@ -568,6 +584,7 @@ export class Sim {
       activeWormId: this.activeWormId,
       stamina: this.stamina,
       retreatStamina: this.retreatStamina,
+      retreatTicks: this.retreatTicks,
       selectedWeapon: this.selectedWeapon,
       grenadeFuse: this.grenadeFuse,
       ammo,
@@ -597,6 +614,7 @@ export class Sim {
       power: this.power,
       charging: this.charging ? 1 : 0,
       pendingShots: this.pendingShots,
+      retreatTicks: this.retreatTicks,
       idleTicks: this.idleTicks,
       endRetreat: this.endRetreat ? 1 : 0,
       rngCalls: this.rngCalls,
