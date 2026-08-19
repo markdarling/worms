@@ -1286,6 +1286,117 @@ body.sudden-death #hud-root::before {
 
 .lobby-copy-icon:hover { background: rgba(43, 32, 40, 0.18); }
 
+/* ==========================================================================
+   DESKTOP-ONLY GATE — full-screen "play this on desktop" overlay
+   (partials/desktop-only.blade.php). Hidden on desktop; a media query flips
+   it on for phone-sized viewports (portrait) and coarse-pointer landscape
+   phones. Sits above everything, fully opaque, same sky/grass look as the
+   lobby so it reads as part of the game rather than an error page.
+   ========================================================================== */
+
+.desktop-gate { display: none; }
+
+@media (max-width: 767px), (pointer: coarse) and (max-height: 500px) {
+  .desktop-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 20px 110px;
+    font-family: var(--w-font);
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 60% 30% at 20% 12%, rgba(255, 255, 255, 0.55), transparent 70%),
+      radial-gradient(ellipse 50% 24% at 75% 20%, rgba(255, 255, 255, 0.45), transparent 70%),
+      linear-gradient(180deg, var(--w-sky-top) 0%, #a8d6f5 55%, var(--w-sky-bottom) 100%);
+  }
+
+  /* Grassy footer strip, same recipe as .lobby::after. */
+  .desktop-gate::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 84px;
+    pointer-events: none;
+    background:
+      linear-gradient(180deg,
+        #9edb4f 0%,
+        var(--w-grass) 10%,
+        #4aa02a 22%,
+        #3d2413 24%,
+        var(--w-soil) 34%,
+        #6b3f1c 70%,
+        #543115 100%);
+    border-top: 3px solid var(--w-ink);
+  }
+}
+
+.desktop-gate__card {
+  position: relative;
+  z-index: 1;
+  max-width: 420px;
+  text-align: center;
+  background: var(--w-cream);
+  color: #2b2028;
+  border: 3px solid var(--w-ink);
+  border-radius: 18px;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.35);
+  padding: 28px 26px 24px;
+  animation: card-pop 0.35s cubic-bezier(0.34, 1.6, 0.5, 1);
+}
+
+.desktop-gate__worm {
+  font-size: 54px;
+  line-height: 1;
+  animation: gate-bob 1.6s ease-in-out infinite;
+}
+
+@keyframes gate-bob {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50% { transform: translateY(-8px) rotate(6deg); }
+}
+
+.desktop-gate__kicker {
+  margin: 14px 0 2px;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--w-red);
+}
+
+.desktop-gate__title {
+  margin: 0 0 10px;
+  font-size: clamp(24px, 7vw, 32px);
+  letter-spacing: 0.5px;
+  color: #fff;
+  transform: rotate(-1.2deg);
+  text-shadow:
+    0 2px 0 var(--w-ink),
+    2px 0 0 var(--w-ink),
+    -2px 0 0 var(--w-ink),
+    0 -2px 0 var(--w-ink),
+    0 6px 0 rgba(0, 0, 0, 0.2);
+}
+
+.desktop-gate__text {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: bold;
+  line-height: 1.5;
+}
+
+.desktop-gate__hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: bold;
+  color: rgba(43, 32, 40, 0.55);
+}
+
 /* Team rows in the new-game form: colour swatch left, name beside it. */
 .lobby-form-team {
   display: flex;

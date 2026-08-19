@@ -8,5 +8,10 @@
 </head>
 <body>
     @yield('content')
+    {{-- Admin pages stay usable on a phone; everything game-facing is
+         desktop-only (keyboard controls, big battlefield). --}}
+    @unless (request()->is('admin*'))
+        @include('partials.desktop-only')
+    @endunless
 </body>
 </html>

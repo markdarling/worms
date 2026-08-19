@@ -19,5 +19,6 @@
 <body>
     <canvas id="game-canvas"></canvas>
     <div id="hud-root"></div>
+    @include('partials.desktop-only')
 </body>
 </html>
