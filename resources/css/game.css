@@ -235,7 +235,9 @@ body:has(#game-canvas) {
 /* The weapon dock only exists while it is actually YOUR live turn — hovering
    weapons while waiting or watching a replay is just noise. main.js toggles
    body.my-turn around the live turn loop. */
-body:not(.my-turn) .hud-weapons {
+body:not(.my-turn) .hud-weapons,
+body:not(.my-turn) .hud-hint,
+body.replay-mode .hud-hint {
   display: none;
 }
 
@@ -427,7 +429,9 @@ body.replay-mode .hud-keys {
    Weapon panel (right slide-in)
    ========================================================================== */
 
-/* Always-open horizontal weapon dock across the bottom of the screen. */
+/* Always-open weapon dock: a TWO-ROW grid across the bottom, grouped per
+   WA's classic F1–F12 panel layout. Each group is a 2-row column cluster;
+   groups are divided by subtle separators. */
 .hud-weapons {
   position: absolute;
   left: 50%;
@@ -436,37 +440,72 @@ body.replay-mode .hud-keys {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 7px 10px;
   max-width: calc(100vw - 24px);
+  overflow-x: auto; /* graceful on narrow windows */
+  scrollbar-width: thin;
 }
 
 /* Hide the dock whenever there is nothing to select (replays, spectating). */
 body.replay-mode .hud-weapons { display: none; }
 
-.hud-weapons__title {
-  font-size: 12px;
-  font-weight: bold;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  text-align: center;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
-}
-
-.hud-weapons__grid {
+.hud-weapons__dock {
   display: flex;
   flex-wrap: nowrap;
-  gap: 6px;
+  align-items: stretch;
+  gap: 0;
+}
+
+/* One F-key group: items flow down-then-across in a fixed 2-row grid. */
+.hud-weapons__group {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, auto);
+  gap: 4px;
+  padding: 0 5px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1); /* subtle separator */
+}
+
+.hud-weapons__group:first-child { padding-left: 0; }
+
+.hud-weapons__group:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+/* Per-weapon targeting hint, floating above the dock (sibling of the dock —
+   the dock clips its own overflow, so the hint hangs off the HUD root). */
+.hud-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 118px;
+  transform: translateX(-50%) translateY(4px);
+  padding: 4px 14px;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--w-amber);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  background: var(--w-panel);
+  border: 2px solid var(--w-panel-edge);
+  border-radius: 999px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.hud-hint.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .hud-weapon {
   position: relative;
-  width: 46px;
+  width: 38px;
   aspect-ratio: 1;
   flex: 0 0 auto;
   border: 2px solid rgba(255, 255, 255, 0.14);
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(0, 0, 0, 0.45);
   cursor: pointer;
   display: flex;
@@ -498,9 +537,17 @@ body.replay-mode .hud-weapons { display: none; }
   transform: none;
 }
 
+/* Crate-only super weapons (ammo 0): greyed but clearly present — the slot
+   lights up the moment a crate delivers one. */
+.hud-weapon.is-crateonly {
+  opacity: 0.4;
+  filter: grayscale(0.9) brightness(0.85);
+  border-style: dashed;
+}
+
 .hud-weapon__icon {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   image-rendering: pixelated; /* ripped 32x32 icons stay crisp when scaled */
   border-radius: 5px; /* keep the icon's dark plate inside the rounded cell */
 }
@@ -568,6 +615,15 @@ body.replay-mode .hud-weapons { display: none; }
   border-color: #fff2c0;
   color: #33230a;
   box-shadow: 0 0 8px rgba(255, 194, 28, 0.55);
+}
+
+/* Buttons 6–8 only exist in girder ANGLE mode. */
+.hud-fuse__btn.is-hidden { display: none; }
+
+/* Girder angle mode: 8 slimmer buttons so the row stays compact. */
+.hud-fuse.is-angle .hud-fuse__btn {
+  width: 24px;
+  font-size: 10px;
 }
 
 .hud-skipbtn {
@@ -1130,7 +1186,9 @@ body.sudden-death #hud-root::before {
   .hud-stamina { width: 150px; bottom: 118px; }
   .hud-teams { min-width: 0; }
   .hud-team__name { width: 64px; font-size: 10px; }
-  .hud-weapons { width: 172px; }
+  .hud-weapon { width: 32px; }
+  .hud-weapon__icon { width: 22px; height: 22px; }
+  .hud-hint { display: none; }
   .hud-keys { display: none; }
   .lobby-card { padding: 18px 16px; }
 }

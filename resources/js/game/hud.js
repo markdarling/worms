@@ -20,19 +20,106 @@
 
 import { getWeaponIcon, resolveTeamColor } from './sprites.js';
 
-const WEAPONS = [
-  { id: 'bazooka', label: 'Bazooka' },
-  { id: 'grenade', label: 'Grenade' },
-  { id: 'cluster', label: 'Cluster Bomb' },
-  { id: 'shotgun', label: 'Shotgun' },
-  { id: 'firepunch', label: 'Fire Punch' },
-  { id: 'dynamite', label: 'Dynamite' },
-  { id: 'airstrike', label: 'Air Strike' },
-  { id: 'teleport', label: 'Teleport' },
-  { id: 'skip', label: 'Skip Go' },
+// Dock layout: WA's classic F1–F12 panel grouping (WEAPONS.md), implement
+// tier only. Each group renders as a 2-row column cluster with a subtle
+// separator between groups — 37 weapons in ~19 compact columns.
+const WEAPON_GROUPS = [
+  { key: 'F1', items: [
+    { id: 'bazooka', label: 'Bazooka' },
+    { id: 'homing', label: 'Homing Missile' },
+    { id: 'mortar', label: 'Mortar' },
+  ] },
+  { key: 'F2', items: [
+    { id: 'grenade', label: 'Grenade' },
+    { id: 'cluster', label: 'Cluster Bomb' },
+    { id: 'banana', label: 'Banana Bomb' },
+    { id: 'axe', label: 'Battle Axe' },
+    { id: 'earthquake', label: 'Earthquake' },
+  ] },
+  { key: 'F3', items: [
+    { id: 'shotgun', label: 'Shotgun' },
+    { id: 'handgun', label: 'Handgun' },
+    { id: 'uzi', label: 'Uzi' },
+    { id: 'minigun', label: 'Minigun' },
+    { id: 'longbow', label: 'Longbow' },
+  ] },
+  { key: 'F4', items: [
+    { id: 'firepunch', label: 'Fire Punch' },
+    { id: 'dragonball', label: 'Dragon Ball' },
+    { id: 'kamikaze', label: 'Kamikaze' },
+    { id: 'prod', label: 'Prod' },
+  ] },
+  { key: 'F5', items: [
+    { id: 'dynamite', label: 'Dynamite' },
+    { id: 'mine', label: 'Mine' },
+    { id: 'sheep', label: 'Sheep' },
+  ] },
+  { key: 'F6', items: [
+    { id: 'airstrike', label: 'Air Strike' },
+    { id: 'napalm', label: 'Napalm Strike' },
+    { id: 'minestrike', label: 'Mine Strike' },
+  ] },
+  { key: 'F7', items: [
+    { id: 'blowtorch', label: 'Blow Torch' },
+    { id: 'drill', label: 'Pneumatic Drill' },
+    { id: 'girder', label: 'Girder' },
+    { id: 'baseballbat', label: 'Baseball Bat' },
+  ] },
+  { key: 'F8', items: [
+    { id: 'parachute', label: 'Parachute' },
+    { id: 'teleport', label: 'Teleport' },
+  ] },
+  { key: 'F9', items: [
+    { id: 'holygrenade', label: 'Holy Hand Grenade' },
+    { id: 'flamethrower', label: 'Flame Thrower' },
+  ] },
+  { key: 'F10', items: [
+    { id: 'petrol', label: 'Petrol Bomb' },
+    { id: 'carpetbomb', label: "Mike's Carpet Bomb" },
+  ] },
+  { key: 'F11', items: [
+    { id: 'donkey', label: 'Concrete Donkey' },
+    { id: 'armageddon', label: 'Armageddon' },
+  ] },
+  { key: 'F12', items: [
+    { id: 'skip', label: 'Skip Go' },
+    { id: 'selectworm', label: 'Select Worm' },
+  ] },
 ];
 
-const FUSE_WEAPONS = new Set(['grenade', 'cluster']);
+const WEAPONS = WEAPON_GROUPS.flatMap((g) => g.items);
+
+// 1–5 second fuse pickers (grenade family). Girder reuses the same row as an
+// 8-way ANGLE picker (contract: input.fuse extended to 1..8 for girder).
+const FUSE_WEAPONS = new Set(['grenade', 'cluster', 'banana']);
+
+// Per-weapon targeting hint shown above the dock while selected.
+const WEAPON_HINTS = {
+  homing: 'Click the map to mark the target, then aim + charge',
+  airstrike: 'Click to aim the strike · ←/→ picks the approach side',
+  napalm: 'Click to aim the strike — mind the wind!',
+  minestrike: 'Click to aim the strike',
+  carpetbomb: 'Click to aim the strike',
+  donkey: 'Click where the donkey shall fall',
+  teleport: 'Click to teleport',
+  girder: 'Move the mouse to place · 1–8 sets the angle · click to build',
+  selectworm: 'Click one of your worms to take over',
+  earthquake: 'Fires instantly — everything gets shaken loose',
+  armageddon: 'Fires instantly — meteors rain on everyone',
+  sheep: 'Release, then Space again to detonate',
+  mine: 'Drops at your feet — you get 5s to run',
+  kamikaze: 'Pick one of 8 directions — a one-way trip',
+  blowtorch: '↑/↓ picks the dig angle before firing',
+  drill: 'Drills straight down from where you stand',
+  parachute: 'Opens automatically when you fall',
+  longbow: 'Two arrows — they stick into the terrain',
+  mortar: 'Fixed power — the clusters fall back towards you',
+  holygrenade: 'Fixed 3s fuse — waits until it lies still',
+  prod: 'A gentle poke. Devastating next to water.',
+  banana: 'Set the fuse, throw high, run far',
+  petrol: 'The flames ride the wind',
+  flamethrower: 'Hold your line — the stream pushes them back',
+};
 
 const KEYBINDINGS = [
   ['← →', 'walk'],
@@ -40,8 +127,9 @@ const KEYBINDINGS = [
   ['⌫', 'backflip'],
   ['↑ ↓', 'aim'],
   ['Space', 'hold: charge · release: fire'],
-  ['1–5', 'grenade fuse'],
-  ['Click', 'target (teleport / air strike)'],
+  ['1–5', 'fuse (grenade family)'],
+  ['1–8', 'girder angle'],
+  ['Click', 'target (teleport / strikes / girder)'],
   ['Drag / edges', 'pan camera'],
 ];
 
@@ -114,34 +202,43 @@ export class Hud {
     // ---- Team health (bottom centre) ----
     n.teams = el('div', 'hud-teams', this.root);
 
-    // ---- Weapon panel (right slide-in) ----
+    // ---- Weapon dock: two-row grid grouped per WA's F1–F12 panel ----
+    // Targeting hint (per-weapon) floats above the dock; it lives on the
+    // root because the dock clips its own overflow (horizontal scroll).
+    n.hint = el('div', 'hud-hint', this.root, '');
+
     n.panel = el('div', 'hud-weapons', this.root);
-    el('div', 'hud-weapons__title', n.panel, 'Weapons');
-    const grid = el('div', 'hud-weapons__grid', n.panel);
+    const dock = el('div', 'hud-weapons__dock', n.panel);
     n.cells = {};
-    for (const w of WEAPONS) {
-      const cell = el('button', 'hud-weapon', grid);
-      cell.type = 'button';
-      cell.dataset.id = w.id;
-      cell.title = w.label;
-      const icon = getWeaponIcon(w.id);
-      icon.className = 'hud-weapon__icon';
-      cell.appendChild(icon);
-      const ammo = el('span', 'hud-weapon__ammo', cell, '∞');
-      cell.addEventListener('click', () => {
-        if (cell.classList.contains('is-disabled')) return;
-        if (w.id === 'skip') { this.cb.onSkip && this.cb.onSkip(); return; }
-        this.cb.onWeaponSelect && this.cb.onWeaponSelect(w.id);
-      });
-      n.cells[w.id] = { cell, ammo, lastAmmo: '∞' };
+    for (const group of WEAPON_GROUPS) {
+      const g = el('div', 'hud-weapons__group', dock);
+      g.dataset.group = group.key;
+      g.title = group.key;
+      for (const w of group.items) {
+        const cell = el('button', 'hud-weapon', g);
+        cell.type = 'button';
+        cell.dataset.id = w.id;
+        cell.title = w.label;
+        const icon = getWeaponIcon(w.id);
+        icon.className = 'hud-weapon__icon';
+        cell.appendChild(icon);
+        const ammo = el('span', 'hud-weapon__ammo', cell, '∞');
+        cell.addEventListener('click', () => {
+          if (cell.classList.contains('is-disabled')) return;
+          if (w.id === 'skip') { this.cb.onSkip && this.cb.onSkip(); return; }
+          this.cb.onWeaponSelect && this.cb.onWeaponSelect(w.id);
+        });
+        n.cells[w.id] = { cell, ammo, lastAmmo: '∞' };
+      }
     }
 
-    // Fuse selector (visible for grenade/cluster): label on top, buttons below.
+    // Fuse / girder-angle selector: 8 buttons; grenades show 1–5 ("Ns"),
+    // girder shows all 8 as plain angle steps with an ANGLE label.
     n.fuseRow = el('div', 'hud-fuse', n.panel);
-    el('span', 'hud-fuse__label', n.fuseRow, 'FUSE');
+    n.fuseLabel = el('span', 'hud-fuse__label', n.fuseRow, 'FUSE');
     const fuseBtnRow = el('div', 'hud-fuse__btns', n.fuseRow);
     n.fuseBtns = [];
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 8; i++) {
       const b = el('button', 'hud-fuse__btn', fuseBtnRow, `${i}s`);
       b.type = 'button';
       b.addEventListener('click', () => this.cb.onFuseSelect && this.cb.onFuseSelect(i));
@@ -307,20 +404,40 @@ export class Hud {
       }
       const disabled = !infinite && raw <= 0;
       c.cell.classList.toggle('is-disabled', disabled);
+      // 0 ammo = crate-only super weapon: greyed but readable in the grid.
+      c.cell.classList.toggle('is-crateonly', !infinite && raw === 0);
       c.cell.classList.toggle('is-selected', w.id === selected);
     }
 
-    // Fuse row only for grenade-family weapons.
-    const fuseVisible = FUSE_WEAPONS.has(selected);
-    if (fuseVisible !== this._last.fuseVisible) {
+    // Fuse row: grenade family shows 1–5 seconds; girder repurposes it as
+    // the 8-step ANGLE picker (contract: fuse 1..8 while girder selected).
+    const girderMode = selected === 'girder';
+    const fuseVisible = girderMode || FUSE_WEAPONS.has(selected);
+    if (fuseVisible !== this._last.fuseVisible || girderMode !== this._last.girderMode) {
       this._last.fuseVisible = fuseVisible;
+      this._last.girderMode = girderMode;
       n.fuseRow.classList.toggle('is-visible', fuseVisible);
+      n.fuseRow.classList.toggle('is-angle', girderMode);
+      n.fuseLabel.textContent = girderMode ? 'ANGLE' : 'FUSE';
+      n.fuseBtns.forEach((b, i) => {
+        b.textContent = girderMode ? String(i + 1) : `${i + 1}s`;
+        b.title = girderMode ? `${(i * 22.5).toFixed(1).replace('.0', '')}° from vertical` : `${i + 1} second fuse`;
+        b.classList.toggle('is-hidden', !girderMode && i >= 5);
+      });
     }
     // Engine exposes the fuse as state.grenadeFuse (default 3).
     const fuse = state.grenadeFuse ?? state.fuse ?? state.selectedFuse ?? null;
     if (fuse !== this._last.fuse) {
       this._last.fuse = fuse;
       n.fuseBtns.forEach((b, i) => b.classList.toggle('is-selected', i + 1 === fuse));
+    }
+
+    // Targeting hint for the selected weapon.
+    const hint = (selected && WEAPON_HINTS[selected]) || '';
+    if (hint !== this._last.hint) {
+      this._last.hint = hint;
+      n.hint.textContent = hint;
+      n.hint.classList.toggle('is-visible', !!hint);
     }
   }
 

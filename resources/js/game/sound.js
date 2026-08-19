@@ -27,6 +27,10 @@ const FILES = {
   laugh: 'voice-laugh.wav',
   byebye: 'voice-byebye.wav',
   victory: 'voice-victory.wav',
+  // Holy Hand Grenade choir — sample NOT in the current rip (flagged in
+  // WEAPONS.md). Wired so dropping hallelujah.wav into public/assets/sounds/
+  // just works; until then it 404s once at boot and stays silent.
+  hallelujah: 'hallelujah.wav',
 };
 
 class SoundBank {

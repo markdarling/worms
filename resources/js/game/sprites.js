@@ -26,10 +26,12 @@ export const OUTLINE = '#33131f';
 // ---------------------------------------------------------------------------
 
 const ASSET_BASE = '/assets/sprites/';
+const THEME_BASE = '/assets/themes/';
 const KEYS = {
   lav: [128, 128, 192],
   khaki: [192, 192, 128],
   black: [0, 0, 0],
+  blue: [32, 32, 248], // worm-longbow.png's odd key (measured, see MANIFEST)
 };
 
 // fh defaults to 60. `whole` = single image, not a film strip.
@@ -58,7 +60,171 @@ const SHEET_DEFS = {
   terrainGrass: { file: 'terrain-forest-grass.png', whole: true, pixels: true },
   skyGradient: { file: 'terrain-forest-gradient.png', whole: true },
   backdrop: { file: 'terrain-forest-back.png', whole: true, key: 'black' },
+
+  // ---- Arsenal expansion (keys vary per file — recorded in MANIFEST.md) ----
+  projHoming: { file: 'proj-homing.png', key: 'khaki' },
+  projHomingActive: { file: 'proj-homing-active.png', key: 'khaki' },
+  projMortar: { file: 'proj-mortar.png', key: 'khaki' },
+  projBanana: { file: 'proj-banana.png', key: 'lav' },
+  projHoly: { file: 'proj-holygrenade.png', key: 'lav' },
+  mineIdle: { file: 'mine-idle.png', key: 'lav' },
+  mineArmed: { file: 'mine-armed.png', key: 'lav' },
+  sheepWalk: { file: 'sheep-walk.png', key: 'khaki' },
+  sheepFall: { file: 'sheep-fall.png', key: 'khaki' },
+  projArrow: { file: 'proj-arrow.png', key: 'khaki' },
+  projPetrol: { file: 'proj-petrol.png', key: 'khaki' },
+  projStrike: { file: 'proj-airstrike-missile.png', key: 'khaki' },
+  projCarpet: { file: 'proj-carpet.png', key: 'lav' },
+  fireball: { file: 'proj-fireball.png', fw: 72, fh: 72, key: 'khaki' },
+  donkey: { file: 'donkey.png', fw: 158, fh: 123, key: 'khaki' },
+  meteor: { file: 'fx-meteor.png', fw: 50, fh: 50, key: 'lav' },
+  firePetrol: { file: 'fx-fire-petrol.png', key: 'lav' },
+  flame: { file: 'fx-flame.png', key: 'black' },
+  flameBig: { file: 'fx-flame-big.png', key: 'lav' },
+  strikeMarker: { file: 'ui-airstrike-marker.png', fw: 30, fh: 30, key: 'lav' },
+
+  // Worm weapon poses
+  wormJump: { file: 'worm-jump.png', key: 'lav' },
+  wormAxe: { file: 'worm-axe.png', fw: 104, fh: 104, key: 'khaki' },
+  batAim: { file: 'worm-bat-aim.png', key: 'lav' },
+  batSwing: { file: 'worm-bat-swing.png', key: 'lav' },
+  wormProd: { file: 'worm-prod.png', key: 'lav' },
+  blowtorch: { file: 'worm-blowtorch.png', fw: 80, fh: 80, key: 'khaki' },
+  blowtorchAim: { file: 'worm-blowtorch-aim.png', key: 'khaki' },
+  wormDrill: { file: 'worm-drill.png', key: 'khaki' },
+  kamikaze1: { file: 'worm-kamikaze-1.png', key: 'khaki' },
+  kamikaze2: { file: 'worm-kamikaze-2.png', key: 'khaki' },
+  kamikaze3: { file: 'worm-kamikaze-3.png', key: 'khaki' },
+  kamikaze4: { file: 'worm-kamikaze-4.png', key: 'khaki' },
+  kamikaze5: { file: 'worm-kamikaze-5.png', key: 'khaki' },
+  handgun: { file: 'worm-handgun.png', key: 'khaki' },
+  uzi: { file: 'worm-uzi.png', key: 'lav' },
+  minigun: { file: 'worm-minigun.png', fw: 90, fh: 90, key: 'lav' },
+  longbow: { file: 'worm-longbow.png', key: 'blue' },
 };
+
+// Girders: 9 placement steps × 2 lengths, whole images (dimensions vary per angle).
+for (let gi = 0; gi <= 8; gi++) {
+  SHEET_DEFS[`girderLong${gi}`] = { file: `girder-long-${gi}.png`, whole: true, key: 'lav' };
+  SHEET_DEFS[`girderShort${gi}`] = { file: `girder-short-${gi}.png`, whole: true, key: 'lav' };
+}
+
+// ---------------------------------------------------------------------------
+// Theme registry (MAPGEN.md §4) — data only, presentation-side.
+//   dir:        theme folder under /assets/themes/ (null = legacy forest files)
+//   grassTileW: horizontal tile band width sampled from the grass strip
+//   grassRows:  strip height in px (16 / 32 / 64 — varies per theme)
+//   grassDepth: how many px below the surface count as "grass" in the bake
+//   outline:    2px dark edge colour [r,g,b]; outline2: soft second row
+//   waterTint:  base water colour [r,g,b] (front layers derived in renderer)
+// ---------------------------------------------------------------------------
+
+export const THEMES = {
+  forest: {
+    dir: null, grassTileW: 64, grassRows: 16, grassDepth: 4,
+    outline: [42, 26, 16], outline2: [58, 36, 21], waterTint: [24, 68, 140],
+  },
+  cheese: {
+    dir: 'cheese', grassTileW: 64, grassRows: 16, grassDepth: 4,
+    outline: [70, 40, 6], outline2: [96, 58, 12], waterTint: [24, 68, 140],
+  },
+  desert: {
+    dir: 'desert', grassTileW: 64, grassRows: 64, grassDepth: 8,
+    outline: [60, 32, 10], outline2: [82, 46, 16], waterTint: [20, 90, 130],
+  },
+  hell: {
+    dir: 'hell', grassTileW: 64, grassRows: 32, grassDepth: 6,
+    outline: [46, 8, 4], outline2: [78, 20, 6], waterTint: [110, 24, 14],
+  },
+  jungle: {
+    dir: 'jungle', grassTileW: 64, grassRows: 64, grassDepth: 8,
+    outline: [18, 28, 12], outline2: [32, 44, 20], waterTint: [16, 84, 96],
+  },
+  manhattan: {
+    dir: 'manhattan', grassTileW: 64, grassRows: 16, grassDepth: 4,
+    outline: [14, 16, 30], outline2: [28, 32, 52], waterTint: [28, 54, 88],
+  },
+  snow: {
+    dir: 'snow', grassTileW: 64, grassRows: 32, grassDepth: 6,
+    outline: [56, 72, 122], outline2: [82, 100, 158], waterTint: [22, 58, 124],
+  },
+  tools: {
+    dir: 'tools', grassTileW: 64, grassRows: 16, grassDepth: 4,
+    outline: [36, 16, 6], outline2: [56, 28, 12], waterTint: [24, 68, 140],
+  },
+};
+
+const THEME_NAMES = Object.keys(THEMES).sort(); // stable alphabetical order
+
+// Local deterministic hash (theme choice is presentation-only; only needs to be
+// self-consistent per seed so replays render identically — MAPGEN.md §4.3).
+function themeHash(a, b) {
+  let h = (a | 0) ^ 0x9e3779b9;
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b) ^ (b | 0);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+/** config.theme wins; else a seeded pick from config.seed (stable ordering). */
+export function resolveThemeName(config) {
+  const c = config || {};
+  if (c.theme && THEMES[c.theme]) return c.theme;
+  const seed = Number.isFinite(c.seed) ? c.seed : 0;
+  return THEME_NAMES[themeHash(seed, 0x7ee3) % THEME_NAMES.length];
+}
+
+let themeName = null;    // resolved theme; null until ensureTheme() runs
+let themeVersion = 0;    // bumped when theme art becomes available/changes
+const themeSheets = {};  // soil / grass / sky / back canvases (non-forest)
+const themePixels = {};  // soil / grass ImageData for the bake
+let _themePromise = null;
+
+/**
+ * Resolve + load the theme for this game's config. Idempotent; safe to call
+ * every frame. Forest needs no extra files (initAssets loads them). Missing
+ * theme files fall back to the forest art / procedural colours.
+ */
+export function ensureTheme(config) {
+  if (themeName !== null) return _themePromise || Promise.resolve();
+  themeName = resolveThemeName(config);
+  const th = THEMES[themeName];
+  if (!th.dir || typeof document === 'undefined') {
+    themeVersion++;
+    return Promise.resolve();
+  }
+  const base = `${THEME_BASE}${th.dir}/terrain-${themeName}-`;
+  const load = async (slot, suffix, key, pixels) => {
+    try {
+      const bmp = await fetchBitmap(base + suffix, true);
+      const c = makeCanvas(bmp.width, bmp.height);
+      const cx = c.getContext('2d', { willReadFrequently: true });
+      cx.drawImage(bmp, 0, 0);
+      if (key) chromaKey(cx, c.width, c.height, KEYS[key], 10);
+      if (pixels) themePixels[slot] = cx.getImageData(0, 0, c.width, c.height);
+      themeSheets[slot] = c;
+    } catch (e) {
+      console.warn(`[theme] ${base}${suffix} unavailable — forest/procedural fallback (${e.message})`);
+    }
+  };
+  _themePromise = Promise.all([
+    load('soil', 'texture.png', null, true),
+    load('grass', 'grass.png', 'black', true),
+    load('sky', 'gradient.png', null, false),
+    load('back', 'back.png', 'black', false),
+  ]).then(() => { themeVersion++; });
+  return _themePromise;
+}
+
+/** Current theme data (+ name). Valid before ensureTheme resolves (forest). */
+export function getThemeParams() {
+  const name = themeName || 'forest';
+  return { name, ...THEMES[name] };
+}
+
+/** Bumped whenever theme art lands — renderer rebakes on change. */
+export function getThemeVersion() {
+  return themeVersion;
+}
 
 // Weapon-id -> ripped icon file (manifest naming).
 const ICON_FILES = {
@@ -71,6 +237,35 @@ const ICON_FILES = {
   airstrike: 'icon-airstrke.png',
   teleport: 'icon-teleport.png',
   skip: 'icon-skipgo.png',
+  // Arsenal expansion — all 28 new ids (MANIFEST.md, verified 32x32).
+  homing: 'icon-homing.png',
+  mortar: 'icon-mortar.png',
+  banana: 'icon-banana.png',
+  holygrenade: 'icon-holygrenade.png',
+  axe: 'icon-axe.png',
+  prod: 'icon-prod.png',
+  baseballbat: 'icon-baseballbat.png',
+  dragonball: 'icon-dragonball.png',
+  handgun: 'icon-handgun.png',
+  uzi: 'icon-uzi.png',
+  minigun: 'icon-minigun.png',
+  longbow: 'icon-longbow.png',
+  petrol: 'icon-petrol.png',
+  napalm: 'icon-napalm.png',
+  flamethrower: 'icon-flamethrower.png',
+  mine: 'icon-mine.png',
+  minestrike: 'icon-minestrike.png',
+  sheep: 'icon-sheep.png',
+  kamikaze: 'icon-kamikaze.png',
+  blowtorch: 'icon-blowtorch.png',
+  drill: 'icon-drill.png',
+  girder: 'icon-girder.png',
+  parachute: 'icon-parachute.png',
+  earthquake: 'icon-earthquake.png',
+  donkey: 'icon-donkey.png',
+  armageddon: 'icon-armageddon.png',
+  selectworm: 'icon-selectworm.png',
+  carpetbomb: 'icon-carpetbomb.png',
 };
 
 let assetsReady = false;
@@ -81,18 +276,24 @@ const iconBitmaps = {}; // weapon id -> ImageBitmap
 /**
  * Fetch, chroma-key and slice all ripped sheets. Resolves even when files
  * are missing (each failure warns and leaves the procedural fallback active).
+ * Optional `config` also resolves + loads the terrain theme (config.theme ??
+ * seeded pick from config.seed); the renderer calls ensureTheme(sim.config)
+ * itself, so passing it here is a convenience, not a requirement.
  */
-export async function initAssets() {
-  if (typeof document === 'undefined' || assetsReady) return;
+export async function initAssets(config) {
+  if (typeof document === 'undefined') return;
   const jobs = [];
-  for (const [name, def] of Object.entries(SHEET_DEFS)) jobs.push(loadSheet(name, def));
-  for (const [id, file] of Object.entries(ICON_FILES)) jobs.push(loadIcon(id, file));
+  if (config) jobs.push(ensureTheme(config));
+  if (!assetsReady) {
+    for (const [name, def] of Object.entries(SHEET_DEFS)) jobs.push(loadSheet(name, def));
+    for (const [id, file] of Object.entries(ICON_FILES)) jobs.push(loadIcon(id, file));
+  }
   await Promise.all(jobs);
   assetsReady = true;
 }
 
-async function fetchBitmap(file) {
-  const res = await fetch(ASSET_BASE + file);
+async function fetchBitmap(file, absolute = false) {
+  const res = await fetch(absolute ? file : ASSET_BASE + file);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const blob = await res.blob();
   return createImageBitmap(blob);
@@ -196,20 +397,26 @@ function motionFor(seed, x, y, t) {
 
 // Renderer-facing asset accessors ------------------------------------------
 
-/** {soil, grass} ImageData for the terrain bake, or null when unavailable. */
+/**
+ * {soil, grass} ImageData for the terrain bake, or null when unavailable.
+ * Prefers the selected theme's art; forest files are the fallback.
+ */
 export function getTerrainAssets() {
-  if (!assetsReady) return null;
-  if (!pixelData.terrainSoil && !pixelData.terrainGrass) return null;
-  return { soil: pixelData.terrainSoil || null, grass: pixelData.terrainGrass || null };
+  const soil = themePixels.soil || (assetsReady ? pixelData.terrainSoil : null) || null;
+  const grass = themePixels.grass || (assetsReady ? pixelData.terrainGrass : null) || null;
+  if (!soil && !grass) return null;
+  return { soil, grass };
 }
 
-/** Ripped sky gradient (8x916 strip) to stretch across the canvas, or null. */
+/** Sky gradient strip (themed when loaded) to stretch across the canvas. */
 export function getSkyImage() {
+  if (themeSheets.sky) return themeSheets.sky;
   return (assetsReady && sheets.skyGradient) ? sheets.skyGradient.canvas : null;
 }
 
-/** Ripped distant background silhouette (black keyed out), or null. */
+/** Distant background silhouette (black keyed out; themed when loaded). */
 export function getBackdropImage() {
+  if (themeSheets.back) return themeSheets.back;
   return (assetsReady && sheets.backdrop) ? sheets.backdrop.canvas : null;
 }
 
@@ -269,12 +476,8 @@ function drawWormSprite(ctx, o) {
   // Frame selection: airborne > walking > aim pose (active) > idle/blink.
   let sheet = sheets.wormIdle;
   let idx = 0;
-  const aimSheets = {
-    bazooka: sheets.aimBazooka,
-    grenade: sheets.aimGrenade,
-    cluster: sheets.aimCluster,
-    shotgun: sheets.aimShotgun,
-  };
+  const pose = weapon ? WEAPON_POSES[weapon] : null;
+  const poseSheet = pose ? (sheets[pose.sheet] || (pose.alt && sheets[pose.alt])) : null;
   if (t < m.airUntil && (sheets.wormFall || sheets.wormFly)) {
     if (sheets.wormFall) {
       sheet = sheets.wormFall;
@@ -286,9 +489,11 @@ function drawWormSprite(ctx, o) {
   } else if (t < m.walkUntil && sheets.wormWalk) {
     sheet = sheets.wormWalk;
     idx = Math.floor(m.dist / 1.6) % sheet.frames; // cycle driven by distance
-  } else if (active && weapon && aimSheets[weapon]) {
-    sheet = aimSheets[weapon];
-    idx = aimFrame(aimAngle);
+  } else if (active && poseSheet) {
+    sheet = poseSheet;
+    if (pose.mode === 'aim32') idx = aimFrame(aimAngle);
+    else if (pose.mode === 'anim') idx = Math.floor(t * (pose.fps || 10)) % sheet.frames;
+    else idx = Math.min(pose.frame || 0, sheet.frames - 1); // 'hold'
   } else {
     const blinkPhase = (t + seed * 0.61) % 4.4;
     if (sheets.wormBlink && blinkPhase < 0.3) {
@@ -315,13 +520,43 @@ function drawWormSprite(ctx, o) {
   const s = WORM_SCALE;
   const prev = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = false;
+  // Anchor generalised for the larger pose frames (80/90/104 px): centre
+  // horizontally, foot row at the same relative height as the 60px strips.
   ctx.drawImage(
     sheet.canvas, 0, idx * sheet.fh, sheet.fw, sheet.fh,
-    -FRAME_C * s, -WORM_FOOT * s, sheet.fw * s, sheet.fh * s,
+    -(sheet.fw / 2) * s, -(sheet.fh * (WORM_FOOT / 60)) * s, sheet.fw * s, sheet.fh * s,
   );
   ctx.imageSmoothingEnabled = prev;
   ctx.restore();
 }
+
+// Selected-weapon -> worm pose. mode: 'aim32' (angle table), 'anim', 'hold'.
+// Missing sheets fall through `alt`, then to idle — graceful everywhere.
+const WEAPON_POSES = {
+  bazooka: { sheet: 'aimBazooka', mode: 'aim32' },
+  homing: { sheet: 'aimBazooka', mode: 'aim32' },     // WA reuses the shoulder pose
+  mortar: { sheet: 'aimBazooka', mode: 'aim32' },
+  grenade: { sheet: 'aimGrenade', mode: 'aim32' },
+  banana: { sheet: 'aimGrenade', mode: 'aim32' },     // thrown family
+  holygrenade: { sheet: 'aimGrenade', mode: 'aim32' },
+  petrol: { sheet: 'aimGrenade', mode: 'aim32' },
+  cluster: { sheet: 'aimCluster', mode: 'aim32' },
+  shotgun: { sheet: 'aimShotgun', mode: 'aim32' },
+  handgun: { sheet: 'handgun', mode: 'aim32', alt: 'aimShotgun' },
+  uzi: { sheet: 'uzi', mode: 'aim32', alt: 'aimShotgun' },
+  minigun: { sheet: 'minigun', mode: 'aim32', alt: 'aimShotgun' },
+  longbow: { sheet: 'longbow', mode: 'hold', frame: 4 }, // drawn bow
+  baseballbat: { sheet: 'batAim', mode: 'aim32' },
+  axe: { sheet: 'wormAxe', mode: 'hold', frame: 0 },
+  prod: { sheet: 'wormProd', mode: 'hold', frame: 0 },
+  blowtorch: { sheet: 'blowtorchAim', mode: 'hold', frame: 12 }, // torch raised
+  flamethrower: { sheet: 'blowtorchAim', mode: 'hold', frame: 12 }, // pose MISSING in rip — reuse torch
+  drill: { sheet: 'wormDrill', mode: 'anim', fps: 12 },
+  kamikaze: { sheet: 'kamikaze1', mode: 'hold', frame: 0 },
+  dynamite: { sheet: 'aimGrenade', mode: 'aim32' },   // generic place stand-in
+  mine: { sheet: 'aimGrenade', mode: 'aim32' },
+  sheep: { sheet: 'aimGrenade', mode: 'aim32' },
+};
 
 function drawWormProcedural(ctx, o) {
   const {
@@ -819,6 +1054,621 @@ function spark(ctx, x, y, r) {
 }
 
 // ---------------------------------------------------------------------------
+// Arsenal expansion entities
+// ---------------------------------------------------------------------------
+
+/** Blit a 32-frame rotation-table sheet by travel angle (shared shortcut). */
+function drawRotSheet(ctx, sheet, x, y, angle, scale) {
+  ctx.save();
+  ctx.translate(x, y);
+  blitFrame(ctx, sheet, rotFrame(angle), scale);
+  ctx.restore();
+}
+
+/**
+ * Homing missile. `expired` truthy = homing failed/timed out (red variant —
+ * the classic tell). Fallback: bazooka shell with a blue/red nose ring.
+ */
+export function drawHoming(ctx, x, y, angle, expired = false, t = 0) {
+  const sheet = expired ? (sheets.projHomingActive || sheets.projHoming) : sheets.projHoming;
+  if (assetsReady && sheet) {
+    drawRotSheet(ctx, sheet, x, y, angle, 0.6);
+    return;
+  }
+  drawShell(ctx, x, y, angle, t);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.strokeStyle = expired ? '#e33030' : '#3d7bff';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.arc(3, 0, 3.4, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Homing target marker (click target). Pulses; greyed once homing expired. */
+export function drawHomingTarget(ctx, x, y, t = 0, live = true) {
+  ctx.save();
+  ctx.translate(x, y);
+  const pulse = 1 + 0.15 * Math.sin(t * 6);
+  ctx.scale(pulse, pulse);
+  ctx.strokeStyle = live ? '#3d7bff' : 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.arc(0, 0, 7, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+    ctx.moveTo(dx * 4, dy * 4);
+    ctx.lineTo(dx * 10, dy * 10);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Mortar shell. Fallback: stubby grey shell. */
+export function drawMortarShell(ctx, x, y, angle) {
+  if (assetsReady && sheets.projMortar) {
+    drawRotSheet(ctx, sheets.projMortar, x, y, angle, 0.55);
+    return;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#6f7d8c';
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 5, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#e04141';
+  ctx.beginPath();
+  ctx.ellipse(3, 0, 2, 2.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Banana bomb (shell and bomblets share the art). Fallback: yellow crescent. */
+export function drawBanana(ctx, x, y, angle) {
+  if (assetsReady && sheets.projBanana) {
+    drawRotSheet(ctx, sheets.projBanana, x, y, angle, 0.55);
+    return;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#ffd23c';
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.arc(0, -2, 6, 0.3, Math.PI - 0.3);
+  ctx.arc(0, -4.5, 6.5, Math.PI - 0.4, 0.4, true);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#7a5a10';
+  ctx.fillRect(5, -3.4, 2, 2);
+  ctx.restore();
+}
+
+/** Holy Hand Grenade; `halo` = resting/anticipation beat (golden glow). */
+export function drawHolyGrenade(ctx, x, y, angle, t = 0, halo = false) {
+  if (halo) {
+    ctx.save();
+    ctx.globalAlpha = 0.35 + 0.25 * Math.sin(t * 10);
+    const g = ctx.createRadialGradient(x, y, 1, x, y, 18);
+    g.addColorStop(0, '#fff3b0');
+    g.addColorStop(1, 'rgba(255,243,176,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  if (assetsReady && sheets.projHoly) {
+    drawRotSheet(ctx, sheets.projHoly, x, y, angle, 0.62);
+    return;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#d8c26a';
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.arc(0, 0, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = '#8a6d1a';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(0, -7.5);
+  ctx.lineTo(0, -4);
+  ctx.moveTo(-1.8, -6.2);
+  ctx.lineTo(1.8, -6.2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Petrol bomb bottle. Fallback: green bottle with rag. */
+export function drawPetrolBottle(ctx, x, y, angle, t = 0) {
+  if (assetsReady && sheets.projPetrol) {
+    drawRotSheet(ctx, sheets.projPetrol, x, y, angle, 0.55);
+    return;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle + Math.PI / 2);
+  ctx.fillStyle = '#3c7a4a';
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 1;
+  roundRectPath(ctx, -3, -3, 6, 9, 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillRect(-1.2, -7, 2.4, 4);
+  const f = 2 + Math.sin(t * 30);
+  ctx.fillStyle = '#ffb63c';
+  spark(ctx, 0, -8, f);
+  ctx.restore();
+}
+
+/** Air/napalm/mine-strike drop missile. Fallback: bazooka shell art. */
+export function drawStrikeMissile(ctx, x, y, angle, t = 0) {
+  if (assetsReady && sheets.projStrike) {
+    drawRotSheet(ctx, sheets.projStrike, x, y, angle, 0.6);
+    return;
+  }
+  drawShell(ctx, x, y, angle, t);
+}
+
+/**
+ * Longbow arrow (flying or embedded). Sheet's frame 0 points DOWN (measured
+ * — MANIFEST), unlike the nose-up projectile tables, hence the π offset.
+ */
+export function drawArrowProjectile(ctx, x, y, angle) {
+  if (assetsReady && sheets.projArrow) {
+    ctx.save();
+    ctx.translate(x, y);
+    blitFrame(ctx, sheets.projArrow, rotFrame(angle + Math.PI), 0.6);
+    ctx.restore();
+    return;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.strokeStyle = '#8a5a2b';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-9, 0);
+  ctx.lineTo(7, 0);
+  ctx.stroke();
+  ctx.fillStyle = '#9aa3ad';
+  ctx.beginPath();
+  ctx.moveTo(11, 0);
+  ctx.lineTo(5.5, -2.6);
+  ctx.lineTo(5.5, 2.6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#e04141';
+  ctx.beginPath();
+  ctx.moveTo(-9, 0);
+  ctx.lineTo(-12, -2.6);
+  ctx.lineTo(-10, 0);
+  ctx.lineTo(-12, 2.6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Mine. armed = triggered/fuse running: flashes the red-light variant and
+ * pulses a warning glow. `angle` picks the roll-table frame (optional).
+ */
+export function drawMine(ctx, x, y, { armed = false, t = 0, angle = 0 } = {}) {
+  const flashOn = armed && (Math.floor(t * 8) % 2 === 0);
+  if (armed) {
+    ctx.save();
+    ctx.globalAlpha = 0.3 + 0.3 * Math.sin(t * 16);
+    const g = ctx.createRadialGradient(x, y, 1, x, y, 13);
+    g.addColorStop(0, '#ff5a3c');
+    g.addColorStop(1, 'rgba(255,90,60,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  const sheet = flashOn ? (sheets.mineArmed || sheets.mineIdle) : sheets.mineIdle;
+  if (assetsReady && sheet) {
+    drawRotSheet(ctx, sheet, x, y, angle, 0.55);
+    return;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#4a4f45';
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, 4.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * 4.6, Math.sin(a) * 4.6);
+    ctx.lineTo(Math.cos(a) * 6.6, Math.sin(a) * 6.6);
+    ctx.stroke();
+  }
+  ctx.fillStyle = flashOn ? '#ff3c2a' : '#7a2018';
+  ctx.beginPath();
+  ctx.arc(0, -1, 1.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Sheep: 8-frame walk cycle; airborne uses the 32-frame fall table. */
+export function drawSheep(ctx, x, y, { facing = 1, airborne = false, angle = 0, t = 0 } = {}) {
+  if (assetsReady && (sheets.sheepWalk || sheets.sheepFall)) {
+    let sheet = sheets.sheepWalk;
+    let idx = Math.floor(t * 14) % (sheet ? sheet.frames : 1);
+    if (airborne && sheets.sheepFall) {
+      sheet = sheets.sheepFall;
+      idx = rotFrame(angle);
+    }
+    ctx.save();
+    ctx.translate(x, y + 5);
+    if (facing === 1) ctx.scale(-1, 1); // strips face left, like the worm
+    const s = 0.66;
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      sheet.canvas, 0, idx * sheet.fh, sheet.fw, sheet.fh,
+      -FRAME_C * s, -WORM_FOOT * s, sheet.fw * s, sheet.fh * s,
+    );
+    ctx.imageSmoothingEnabled = prev;
+    ctx.restore();
+    return;
+  }
+  // Procedural sheep: woolly blob + head + trotting legs.
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(facing, 1);
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 1.2;
+  ctx.fillStyle = '#f2efe6';
+  for (const [bx, by, r] of [[-3, -6, 4.5], [1, -7.5, 4], [4, -5.5, 3.6], [-6, -4.5, 3.2]]) {
+    ctx.beginPath();
+    ctx.arc(bx, by, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.arc(0, -6, 7.5, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#2b2028';
+  ctx.beginPath();
+  ctx.ellipse(7.5, -7.5, 3, 2.4, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(8.3, -8.2, 0.8, 0, Math.PI * 2);
+  ctx.fill();
+  const step = Math.sin(t * 18) * 1.6;
+  ctx.strokeStyle = '#2b2028';
+  ctx.lineWidth = 1.6;
+  for (const [lx, ph] of [[-4, 1], [-1, -1], [2, 1], [5, -1]]) {
+    ctx.beginPath();
+    ctx.moveTo(lx, -2);
+    ctx.lineTo(lx + step * ph, 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * One flame particle. size 0..1 scales the sprite; seed staggers the loop.
+ * Glow is included (renderer draws flames late so the glow reads at night).
+ */
+export function drawFlame(ctx, x, y, { size = 1, t = 0, seed = 0 } = {}) {
+  const s = 0.28 + 0.34 * Math.max(0.15, Math.min(1, size));
+  ctx.save();
+  ctx.globalAlpha = 0.28 + 0.1 * Math.sin(t * 13 + seed * 2.1);
+  const g = ctx.createRadialGradient(x, y - 2, 1, x, y - 2, 16 * s + 6);
+  g.addColorStop(0, '#ffce6e');
+  g.addColorStop(1, 'rgba(255,150,40,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(x, y - 2, 16 * s + 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  const sheet = sheets.flameBig || sheets.flame || sheets.firePetrol;
+  if (assetsReady && sheet) {
+    const idx = Math.floor(t * 18 + seed * 5.3) % sheet.frames;
+    ctx.save();
+    ctx.translate(x, y - 6 * s);
+    blitFrame(ctx, sheet, idx, s);
+    ctx.restore();
+    return;
+  }
+  // Procedural flicker: two teardrops.
+  const fl = 1 + 0.25 * Math.sin(t * 21 + seed * 3.7);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s * 2.2, s * 2.2 * fl);
+  ctx.fillStyle = '#ff8c28';
+  ctx.beginPath();
+  ctx.moveTo(0, -8);
+  ctx.quadraticCurveTo(4.5, -3, 0, 1);
+  ctx.quadraticCurveTo(-4.5, -3, 0, -8);
+  ctx.fill();
+  ctx.fillStyle = '#ffe27a';
+  ctx.beginPath();
+  ctx.moveTo(0, -4.5);
+  ctx.quadraticCurveTo(2.4, -1.6, 0, 0.6);
+  ctx.quadraticCurveTo(-2.4, -1.6, 0, -4.5);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Carpet-bomb rolled carpet (10-frame bounce anim). */
+export function drawCarpet(ctx, x, y, t = 0) {
+  if (assetsReady && sheets.projCarpet) {
+    const sheet = sheets.projCarpet;
+    const idx = Math.floor(t * 14) % sheet.frames;
+    ctx.save();
+    ctx.translate(x, y);
+    blitFrame(ctx, sheet, idx, 0.6);
+    ctx.restore();
+    return;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(t * 6);
+  ctx.fillStyle = '#a33a5e';
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 1.1;
+  roundRectPath(ctx, -6, -4, 12, 8, 3.5);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = '#e0b23c';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, 2.4, 0, Math.PI * 1.5);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Dragon Ball energy fireball (cosmetic, travels ~40px). */
+export function drawFireball(ctx, x, y, angle = 0, t = 0) {
+  if (assetsReady && sheets.fireball) {
+    const sheet = sheets.fireball;
+    const idx = Math.floor(t * 20) % sheet.frames;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    const s = 0.6;
+    ctx.drawImage(
+      sheet.canvas, 0, idx * sheet.fh, sheet.fw, sheet.fh,
+      -(sheet.fw / 2) * s, -(sheet.fh / 2) * s, sheet.fw * s, sheet.fh * s,
+    );
+    ctx.imageSmoothingEnabled = prev;
+    ctx.restore();
+    return;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  const g = ctx.createRadialGradient(0, 0, 1, 0, 0, 9);
+  g.addColorStop(0, '#fff4c0');
+  g.addColorStop(0.5, '#ffb63c');
+  g.addColorStop(1, 'rgba(255,110,40,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Concrete Donkey (2-frame stomp bob, scaled to ~50px tall in-world). */
+export function drawDonkey(ctx, x, y, t = 0) {
+  if (assetsReady && sheets.donkey) {
+    const sheet = sheets.donkey;
+    const idx = Math.floor(t * 6) % sheet.frames;
+    const s = 0.4; // 123px frame -> ~50px
+    ctx.save();
+    ctx.translate(x, y);
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      sheet.canvas, 0, idx * sheet.fh, sheet.fw, sheet.fh,
+      -(sheet.fw / 2) * s, -(sheet.fh / 2) * s, sheet.fw * s, sheet.fh * s,
+    );
+    ctx.imageSmoothingEnabled = prev;
+    ctx.restore();
+    return;
+  }
+  // Procedural: chunky grey donkey silhouette.
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#9aa0a8';
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 2;
+  roundRectPath(ctx, -18, -12, 34, 20, 6); // body
+  ctx.fill();
+  ctx.stroke();
+  roundRectPath(ctx, 12, -24, 12, 18, 4);  // head/neck
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath(); // ears
+  ctx.moveTo(14, -24);
+  ctx.lineTo(12, -32);
+  ctx.lineTo(18, -25);
+  ctx.moveTo(20, -24);
+  ctx.lineTo(22, -32);
+  ctx.lineTo(24, -24);
+  ctx.stroke();
+  for (const lx of [-14, -5, 5, 11]) { // legs
+    ctx.fillRect(lx, 8, 5, 12);
+    ctx.strokeRect(lx, 8, 5, 12);
+  }
+  ctx.restore();
+}
+
+/** Armageddon meteor: flaming comic head; angle leans it into the dive. */
+export function drawMeteor(ctx, x, y, angle = 0, t = 0, scale = 1) {
+  if (assetsReady && sheets.meteor) {
+    const sheet = sheets.meteor;
+    const idx = Math.floor(t * 18) % sheet.frames;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle - Math.PI / 2); // art flames point up; lean along travel
+    const s = 0.7 * scale;
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      sheet.canvas, 0, idx * sheet.fh, sheet.fw, sheet.fh,
+      -(sheet.fw / 2) * s, -(sheet.fh / 2) * s, sheet.fw * s, sheet.fh * s,
+    );
+    ctx.imageSmoothingEnabled = prev;
+    ctx.restore();
+    return;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  const r = 7 * scale;
+  const g = ctx.createRadialGradient(-r, 0, 1, -r, 0, r * 3);
+  g.addColorStop(0, 'rgba(255,180,60,0.9)');
+  g.addColorStop(1, 'rgba(255,110,40,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(-r * 1.4, 0, r * 2.4, r * 1.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#7d6b5a';
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ---- Girders ---------------------------------------------------------------
+
+// Art: girder-{long|short}-{0..8}.png, 22.5° steps sweeping 180°
+// (0 = vertical, 4 = horizontal, 8 = vertical again). WA-scale beams
+// (long ≈ 140px) scaled to our world (long ≈ 64px).
+const GIRDER_SCALE = 0.46;
+
+/** input.fuse 1..8 -> girder art index 0..7 (8 unique placement angles). */
+export function girderIndexForFuse(fuse) {
+  const f = ((Math.round(fuse || 1) - 1) % 8 + 8) % 8;
+  return f;
+}
+
+function girderSheet(index, long) {
+  const i = ((index % 9) + 9) % 9;
+  return sheets[`${long ? 'girderLong' : 'girderShort'}${i}`] || null;
+}
+
+/** Solid girder at (x, y) centre. index 0..8 (22.5° steps from vertical). */
+export function drawGirder(ctx, x, y, index = 4, long = true) {
+  const sheet = girderSheet(index, long);
+  if (assetsReady && sheet) {
+    const s = GIRDER_SCALE;
+    ctx.save();
+    ctx.translate(x, y);
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sheet.canvas, -(sheet.fw / 2) * s, -(sheet.fh / 2) * s, sheet.fw * s, sheet.fh * s);
+    ctx.imageSmoothingEnabled = prev;
+    ctx.restore();
+    return;
+  }
+  drawGirderProcedural(ctx, x, y, index, long, null, 1);
+}
+
+const girderGhostCache = new Map(); // `${index}:${long}:${valid}` -> canvas
+
+/**
+ * Girder placement GHOST (semi-transparent, green = valid / red = blocked).
+ * Integration feeds position via renderer.setGhost(); angle index 0..8.
+ */
+export function drawGirderGhost(ctx, x, y, index = 4, { long = true, valid = true, t = 0 } = {}) {
+  const sheet = girderSheet(index, long);
+  if (assetsReady && sheet) {
+    const key = `${((index % 9) + 9) % 9}:${long}:${valid}`;
+    let tinted = girderGhostCache.get(key);
+    if (!tinted) {
+      tinted = makeCanvas(sheet.fw, sheet.fh);
+      const tx = tinted.getContext('2d');
+      tx.drawImage(sheet.canvas, 0, 0);
+      tx.globalCompositeOperation = 'source-atop';
+      tx.fillStyle = valid ? 'rgba(90, 230, 110, 0.5)' : 'rgba(235, 70, 60, 0.55)';
+      tx.fillRect(0, 0, sheet.fw, sheet.fh);
+      girderGhostCache.set(key, tinted);
+    }
+    const s = GIRDER_SCALE;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.globalAlpha = 0.62 + 0.18 * Math.sin(t * 6);
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(tinted, -(sheet.fw / 2) * s, -(sheet.fh / 2) * s, sheet.fw * s, sheet.fh * s);
+    ctx.imageSmoothingEnabled = prev;
+    ctx.restore();
+    return;
+  }
+  drawGirderProcedural(ctx, x, y, index, long, valid ? '#5ae66e' : '#eb463c', 0.6);
+}
+
+function drawGirderProcedural(ctx, x, y, index, long, tint, alpha) {
+  const len = long ? 64 : 32;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(((index % 9) + 9) % 9 * (Math.PI / 8)); // 0 = vertical
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = tint || '#8d99a6';
+  ctx.strokeStyle = tint ? 'rgba(0,0,0,0.4)' : OUTLINE;
+  ctx.lineWidth = 1.2;
+  ctx.fillRect(-4.5, -len / 2, 9, len);
+  ctx.strokeRect(-4.5, -len / 2, 9, len);
+  if (!tint) {
+    ctx.strokeStyle = '#5b6470';
+    for (let yy = -len / 2 + 6; yy < len / 2 - 3; yy += 8) {
+      ctx.beginPath();
+      ctx.moveTo(-4.5, yy);
+      ctx.lineTo(4.5, yy + 5);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+/** Animated strike target cursor (airstrike/napalm/mine strike/carpet/donkey). */
+export function drawStrikeTarget(ctx, x, y, t = 0) {
+  if (assetsReady && sheets.strikeMarker) {
+    const sheet = sheets.strikeMarker;
+    const idx = Math.floor(t * 20) % sheet.frames;
+    ctx.save();
+    ctx.translate(x, y);
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      sheet.canvas, 0, idx * sheet.fh, sheet.fw, sheet.fh,
+      -sheet.fw / 2, -sheet.fh / 2, sheet.fw, sheet.fh,
+    );
+    ctx.imageSmoothingEnabled = prev;
+    ctx.restore();
+    return;
+  }
+  drawCrosshair(ctx, x, y, t);
+}
+
+// ---------------------------------------------------------------------------
 // Crosshair & active-worm arrow
 // ---------------------------------------------------------------------------
 
@@ -951,10 +1801,26 @@ export function getWeaponIcon(id) {
   ctx.scale(2, 2);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  const fn = ICON_PAINTERS[id] || paintUnknownIcon;
+  const fn = ICON_PAINTERS[id] || ((cx) => paintFallbackIcon(cx, id));
   fn(ctx);
   iconCache.set(id, c);
   return c;
+}
+
+// Two-letter monogram fallback so a missing icon file still reads in the dock.
+function paintFallbackIcon(ctx, id) {
+  const label = String(id || '?').slice(0, 2).toUpperCase();
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  roundRectPath(ctx, 3, 3, 22, 22, 5);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#e8e2d2';
+  ctx.font = 'bold 11px "Arial Rounded MT Bold", Verdana, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, 14, 14.5);
 }
 
 const ICON_PAINTERS = {
@@ -1120,14 +1986,6 @@ const ICON_PAINTERS = {
     ctx.stroke();
   },
 };
-
-function paintUnknownIcon(ctx) {
-  ctx.fillStyle = '#666';
-  ctx.font = 'bold 18px "Arial Rounded MT Bold", Verdana, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('?', 14, 15);
-}
 
 // ---------------------------------------------------------------------------
 // Small shared helpers

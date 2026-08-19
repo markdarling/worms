@@ -1,6 +1,9 @@
 // Per-tick input encoding. One tick input is a plain object (contract shape):
 // { left, right, jump, backflip, aimUp, aimDown, charge, fire,
-//   weapon: string|null, fuse: 1-5|null, target: {x,y}|null }
+//   weapon: string|null, fuse: 1-8|null, target: {x,y}|null }
+// fuse 1-5 = grenade-family timer; 1-8 = girder placement angle (expansion
+// contract). target is reused by teleport/airstrike/homing/girder/donkey/
+// napalm/minestrike/carpetbomb/selectworm.
 // encodeCommands RLE-compresses runs of identical inputs; round-trip is
 // lossless with respect to the normalized form.
 
@@ -12,7 +15,7 @@ export function normalizeInput(raw) {
     left: !!r.left, right: !!r.right, jump: !!r.jump, backflip: !!r.backflip,
     aimUp: !!r.aimUp, aimDown: !!r.aimDown, charge: !!r.charge, fire: !!r.fire,
     weapon: typeof r.weapon === 'string' ? r.weapon : null,
-    fuse: Number.isInteger(r.fuse) && r.fuse >= 1 && r.fuse <= 5 ? r.fuse : null,
+    fuse: Number.isInteger(r.fuse) && r.fuse >= 1 && r.fuse <= 8 ? r.fuse : null,
     target: null,
   };
   if (r.target && typeof r.target.x === 'number' && typeof r.target.y === 'number') {

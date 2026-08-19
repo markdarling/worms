@@ -173,14 +173,75 @@ export function applyExplosion(sim, cx, cy, spec, ownerId = -1) {
     if (dx * dx + dy * dy < spec.radius * spec.radius) c.dead = true;
   }
   sim.crates = sim.crates.filter((c) => !c.dead);
+
+  const knockR2 = spec.radius * C.KNOCK_RADIUS_MULT;
+
+  // Mines are hurled further than worms by blasts (classic chain-reactions).
+  if (sim.mines) {
+    for (let i = 0; i < sim.mines.length; i++) {
+      const m = sim.mines[i];
+      if (m.dead) continue;
+      const dx = m.x - cx, dy = m.y - cy;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < knockR2 && spec.knock > 0) {
+        const kf = (1 - d / knockR2) * 1.3;
+        const sp = spec.knock * kf;
+        const ux = d > 0.001 ? dx / d : 0;
+        const uy = d > 0.001 ? dy / d : -1;
+        m.vx += ux * sp;
+        m.vy += uy * sp * 0.7 - sp * 0.5;
+        m.resting = false;
+        m.calm = 0;
+      }
+    }
+  }
+
+  // Flames get hurled around and re-energised by nearby blasts.
+  if (sim.flames) {
+    for (let i = 0; i < sim.flames.length; i++) {
+      const f = sim.flames[i];
+      if (f.dead) continue;
+      const dx = f.x - cx, dy = f.y - cy;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < knockR2 && spec.knock > 0) {
+        const kf = 1 - d / knockR2;
+        const sp = spec.knock * kf * 0.8;
+        const ux = d > 0.001 ? dx / d : 0;
+        const uy = d > 0.001 ? dy / d : -1;
+        f.vx += ux * sp;
+        f.vy += uy * sp - sp * 0.3;
+        f.resting = false;
+        if (f.turnsLeft < 2) f.turnsLeft = 2; // partial lifetime reset
+      }
+    }
+  }
+
+  // Walkers: sheep caught in a blast go up too (chain); donkeys are immovable.
+  if (sim.walkers) {
+    for (let i = 0; i < sim.walkers.length; i++) {
+      const wk = sim.walkers[i];
+      if (wk.dead || wk.kind !== 'sheep') continue;
+      const dx = wk.x - cx, dy = wk.y - cy;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < spec.radius + 6) wk.explodeNext = true;
+      else if (d < knockR2 && spec.knock > 0) {
+        const kf = 1 - d / knockR2;
+        const sp = spec.knock * kf;
+        wk.vx += (d > 0.001 ? dx / d : 0) * sp;
+        wk.vy += (d > 0.001 ? dy / d : -1) * sp * 0.7 - sp * 0.5;
+        if (!wk.airborne) { wk.airborne = true; wk.y -= 1; }
+      }
+    }
+  }
 }
 
 // Scan terrain for standable spawn spots: top of each solid run per sampled
 // column, with body clearance + headroom, above water. Deterministic order
-// (left to right, top to bottom).
-export function findSpawnSpots(terrain, waterLevel) {
+// (left to right, top to bottom). `step` is the column stride: 12 for the
+// legacy spawn scan, 8 for placement.js's reachability graph (MAPGEN.md 3.1).
+export function findSpawnSpots(terrain, waterLevel, step = 12) {
   const spots = [];
-  for (let x = 16; x < terrain.width - 16; x += 12) {
+  for (let x = 16; x < terrain.width - 16; x += step) {
     let y = 12;
     while (y < waterLevel - 8) {
       if (terrain.solid(x, y)) {

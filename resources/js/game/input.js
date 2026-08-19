@@ -24,6 +24,7 @@ export class InputRecorder {
         this.targetMode = false; // click-to-target weapons (teleport/airstrike)
         this.onTogglePanel = null; // set by main.js (HUD concern, not a sim command)
         this.onPan = null;         // set by main.js -> camera nudge
+        this.onHoverWorld = null;  // set by main.js -> ghost previews (girder)
 
         this._dragging = false;
         this._dragLast = null;
@@ -50,6 +51,11 @@ export class InputRecorder {
             this._dragLast = { x: e.clientX, y: e.clientY };
         });
         on(window, 'mousemove', (e) => {
+            // Ghost previews (girder placement) track the cursor in world space.
+            if (this.enabled && this.targetMode && this.onHoverWorld) {
+                const world = this.camera.screenToWorld(e.clientX, e.clientY);
+                this.onHoverWorld(world.x, world.y);
+            }
             if (!this._dragging) return;
             const dx = e.clientX - this._dragLast.x;
             const dy = e.clientY - this._dragLast.y;
@@ -60,11 +66,13 @@ export class InputRecorder {
         on(window, 'mouseup', (e) => {
             if (!this._dragging) return;
             this._dragging = false;
-            // A click (not a drag) places a target for teleport / airstrike.
+            // A click (not a drag) places a target for click-aimed weapons.
+            // targetFires=false (homing): the click only marks the target —
+            // the shot itself is aimed and charged afterwards.
             if (!this._dragMoved && this.enabled && this.targetMode) {
                 const world = this.camera.screenToWorld(e.clientX, e.clientY);
                 this.oneShot.target = { x: Math.round(world.x), y: Math.round(world.y) };
-                this.oneShot.fire = true;
+                if (this.targetFires !== false) this.oneShot.fire = true;
             }
         });
     }
@@ -92,7 +100,8 @@ export class InputRecorder {
         } else if (e.code === 'Backspace') {
             e.preventDefault();
             this.oneShot.backflip = true;
-        } else if (/^Digit[1-5]$/.test(e.code)) {
+        } else if (/^Digit[1-8]$/.test(e.code)) {
+            // 1-5: grenade-family fuse · 1-8: girder angle (engine interprets).
             this.oneShot.fuse = Number(e.code.slice(5));
         }
     }

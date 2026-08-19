@@ -29,10 +29,16 @@ import {
   drawClusterBomblet, drawDynamite, drawCrosshair, drawArrow, getCloud,
   resolveTeamColor, roundRectPath, OUTLINE,
   getTerrainAssets, getSkyImage, getBackdropImage,
+  ensureTheme, getThemeParams, getThemeVersion,
+  drawHoming, drawHomingTarget, drawMortarShell, drawBanana, drawHolyGrenade,
+  drawPetrolBottle, drawStrikeMissile, drawArrowProjectile, drawMine, drawSheep,
+  drawFlame, drawCarpet, drawFireball, drawDonkey, drawMeteor,
+  drawGirder, drawGirderGhost, girderIndexForFuse, drawStrikeTarget,
 } from './sprites.js';
 import { sounds } from './sound.js';
 
-// fire {weapon} event -> sound name.
+// fire {weapon} event -> sound name (mapped onto the ripped WAV set we have;
+// weapons with no natural match reuse the closest classic sound).
 const FIRE_SOUNDS = {
   bazooka: ['bazooka-fire', 0.6],
   shotgun: ['shotgun-fire', 0.6],
@@ -42,6 +48,42 @@ const FIRE_SOUNDS = {
   firepunch: ['firepunch', 0.6],
   airstrike: ['airstrike', 0.5],
   teleport: ['teleport', 0.6],
+  // Arsenal expansion
+  homing: ['bazooka-fire', 0.6],
+  mortar: ['bazooka-fire', 0.5],
+  banana: ['throw', 0.6],
+  holygrenade: ['throw', 0.6],
+  petrol: ['throw', 0.6],
+  longbow: ['throw', 0.5],
+  sheep: ['throw', 0.4],
+  axe: ['firepunch', 0.6],
+  baseballbat: ['firepunch', 0.65],
+  dragonball: ['firepunch', 0.6],
+  prod: ['firepunch', 0.3],
+  kamikaze: ['firepunch', 0.6],
+  handgun: ['shotgun-fire', 0.45],
+  uzi: ['shotgun-fire', 0.45],
+  minigun: ['shotgun-fire', 0.5],
+  flamethrower: ['dynamite-fuse', 0.55],
+  blowtorch: ['dynamite-fuse', 0.5],
+  drill: ['dynamite-fuse', 0.5],
+  mine: ['crate-land', 0.45],
+  girder: ['crate-land', 0.55],
+  minestrike: ['airstrike', 0.5],
+  napalm: ['airstrike', 0.5],
+  carpetbomb: ['airstrike', 0.5],
+  donkey: ['airstrike', 0.45],
+  armageddon: ['airstrike', 0.5],
+  earthquake: ['explosion', 0.4],
+  selectworm: ['worm-select', 0.5],
+};
+
+// Weapons whose 'fire' event should also kick off a sustained set-piece shake
+// {duration s, magnitude} — earthquake/donkey/armageddon get scaled-up shake.
+const SETPIECE_SHAKE = {
+  earthquake: { dur: 4.0, mag: 9 },
+  donkey: { dur: 3.0, mag: 6 },
+  armageddon: { dur: 8.0, mag: 5 },
 };
 
 const FONT_STACK = "'Arial Rounded MT Bold', 'Verdana', sans-serif";
@@ -49,15 +91,36 @@ const TAG_FONT = `bold 8px ${FONT_STACK}`;
 const DMG_FONT = `bold 12px ${FONT_STACK}`;
 const BUBBLE_FONT = `bold 9px ${FONT_STACK}`;
 
-const GRASS_DEPTH = 4;
 const MAX_PARTICLES = 640;
 
-// Water layers: one behind the action, two in front.
-const WATER_BACK = { amp: 4.2, len: 150, speed: 0.55, yoff: -2, color: 'rgba(24, 68, 140, 0.95)' };
-const WATER_FRONT = [
-  { amp: 3.2, len: 100, speed: -0.8, yoff: 2, color: 'rgba(38, 101, 186, 0.62)' },
-  { amp: 2.4, len: 66, speed: 1.25, yoff: 6, color: 'rgba(84, 152, 224, 0.45)' },
-];
+// Water layer wave shapes (colours come from the theme's waterTint —
+// front layers are lightened derivatives of the base tint).
+const WATER_SHAPES = {
+  back: { amp: 4.2, len: 150, speed: 0.55, yoff: -2 },
+  front: [
+    { amp: 3.2, len: 100, speed: -0.8, yoff: 2 },
+    { amp: 2.4, len: 66, speed: 1.25, yoff: 6 },
+  ],
+};
+
+function lighten([r, g, b], k, add) {
+  const f = (v) => Math.min(255, Math.round(v * k + add));
+  return [f(r), f(g), f(b)];
+}
+
+function buildWaterLayers(tint) {
+  const t = tint || [24, 68, 140];
+  const f1 = lighten(t, 1.25, 22);
+  const f2 = lighten(t, 1.55, 48);
+  return {
+    back: { ...WATER_SHAPES.back, color: `rgba(${t[0]}, ${t[1]}, ${t[2]}, 0.95)` },
+    front: [
+      { ...WATER_SHAPES.front[0], color: `rgba(${f1[0]}, ${f1[1]}, ${f1[2]}, 0.62)` },
+      { ...WATER_SHAPES.front[1], color: `rgba(${f2[0]}, ${f2[1]}, ${f2[2]}, 0.45)` },
+    ],
+    droplet: `rgb(${f2[0]}, ${f2[1]}, ${f2[2]})`,
+  };
+}
 
 const TALK_LINES = { ohno: 'Oh no!', laugh: 'Hehehe!', grave: 'Bye bye!' };
 
@@ -80,6 +143,19 @@ export class Renderer {
     this._tCanvas = null;
     this._tCtx = null;
     this._tVersion = -1;
+
+    // Theme: derived from sim.config (config.theme ?? seeded pick). Loads
+    // async; _themeV watches getThemeVersion() and forces a full rebake.
+    ensureTheme(sim && sim.config);
+    this._themeV = -1;
+    this._theme = getThemeParams();
+    this._water = buildWaterLayers(this._theme.waterTint);
+
+    // Girder placement ghost — integration feeds it via setGhost().
+    this._ghost = null;
+
+    // Sustained set-piece screen shake {t, dur, mag}.
+    this._quake = null;
 
     // Particle pool
     this._parts = [];
@@ -109,6 +185,17 @@ export class Renderer {
     sounds.init();
   }
 
+  /**
+   * Girder (or other) placement preview. Integration calls this with the
+   * current mouse/target position while girder is selected, null to clear:
+   *   renderer.setGhost({x, y, angle: 1..8 (the fuse value), long, valid})
+   * The ghost only draws while state.selectedWeapon === 'girder' (or
+   * ghost.kind === 'target' for strike-target previews).
+   */
+  setGhost(ghost) {
+    this._ghost = ghost || null;
+  }
+
   // -----------------------------------------------------------------------
   // Events
   // -----------------------------------------------------------------------
@@ -134,6 +221,8 @@ export class Renderer {
           this._fxFire(ev);
           const snd = FIRE_SOUNDS[ev.weapon];
           if (snd) sounds.play(snd[0], { volume: snd[1] });
+          const shake = SETPIECE_SHAKE[ev.weapon];
+          if (shake) this._quake = { t: 0, dur: shake.dur, mag: shake.mag };
           break;
         }
         case 'bounce':
@@ -163,6 +252,35 @@ export class Renderer {
         case 'turnStart':
           sounds.play('worm-select', { volume: 0.4 });
           break;
+
+        // ---- Arsenal expansion events (names ASSUMED — engine not final;
+        // unknown events fall through harmlessly to the default branch). ----
+        case 'earthquake':
+        case 'quake':
+          this._quake = { t: 0, dur: 4.0, mag: 9 };
+          break;
+        case 'stomp':          // donkey stomp (explosion event covers the fx)
+        case 'donkeyStomp':
+          this.camera.shake(18);
+          break;
+        case 'girderPlaced':
+          this._spawnBurst('dust', ev.x || 0, ev.y || 0, 6, 26, -12, 0.4);
+          sounds.play('crate-land', { volume: 0.55 });
+          break;
+        case 'mineTriggered':
+        case 'mineArmed':
+          sounds.play('bounce', { volume: 0.35 }); // stand-in beep
+          break;
+        case 'hallelujah':     // HHG anticipation — sample not in the rip yet;
+        case 'holyChoir':      // sound.js maps it and fails silently for now
+          sounds.play('hallelujah', { volume: 0.8 });
+          break;
+        case 'homingLock':
+          sounds.play('worm-select', { volume: 0.3 });
+          break;
+        case 'flameIgnite':
+        case 'ignite':
+          break; // flames render from state; no one-shot fx needed
         case 'waterRise':
         default:
           break; // handled naturally via state / HUD
@@ -400,7 +518,7 @@ export class Renderer {
           break;
         case 'droplet':
           ctx.globalAlpha = 1 - k * 0.6;
-          ctx.fillStyle = '#7db8e8';
+          ctx.fillStyle = this._water.droplet || '#7db8e8';
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
           ctx.fill();
@@ -444,6 +562,14 @@ export class Renderer {
   }
 
   _syncTerrain(terrain) {
+    // Theme art arriving (async load) forces a full rebake + water refresh.
+    const tv = getThemeVersion();
+    if (tv !== this._themeV) {
+      this._themeV = tv;
+      this._theme = getThemeParams();
+      this._water = buildWaterLayers(this._theme.waterTint);
+      this._tVersion = -1;
+    }
     if (!this._tCanvas || this._tCanvas.width !== terrain.width || this._tCanvas.height !== terrain.height) {
       this._tCanvas = document.createElement('canvas');
       this._tCanvas.width = terrain.width;
@@ -461,7 +587,7 @@ export class Renderer {
         : [{ x: 0, y: 0, w: terrain.width, h: terrain.height }];
       for (const r of rects) {
         // Expand so grass/outline logic near the edges is recomputed too.
-        const m = GRASS_DEPTH + 2;
+        const m = this._theme.grassDepth + 2;
         const x0 = Math.max(0, (r.x | 0) - m);
         const y0 = Math.max(0, (r.y | 0) - m);
         const x1 = Math.min(terrain.width, Math.ceil(r.x + r.w) + m);
@@ -483,11 +609,23 @@ export class Renderer {
     const d = img.data;
 
     // Ripped tileable textures (soil fill + grass edging); null -> procedural.
+    // All bake parameters are theme-driven (MAPGEN.md §4.2): tile band width,
+    // strip height (16/32/64px per theme), grass depth and outline colours.
     const tex = getTerrainAssets();
     const soilTex = tex && tex.soil;
     const grassTex = tex && tex.grass;
-    // The grass strip's left 64px column band holds the tuft pattern.
-    const GRASS_TILE_W = 64;
+    const th = this._theme;
+    const GRASS_TILE_W = th.grassTileW || 64;
+    const GRASS_DEPTH = th.grassDepth || 4;
+    const [o1r, o1g, o1b] = th.outline || [42, 26, 16];
+    const [o2r, o2g, o2b] = th.outline2 || [58, 36, 21];
+    // Map depth 0..GRASS_DEPTH onto the strip's rows (forest 16px strip:
+    // rows 2..10 — same band as before; taller strips sample proportionally).
+    const stripRows = grassTex ? grassTex.height : (th.grassRows || 16);
+    const rowFor = (depth) => Math.min(
+      stripRows - 1,
+      Math.round(stripRows * (0.125 + 0.55 * (depth / GRASS_DEPTH))),
+    );
 
     for (let yy = 0; yy < h; yy++) {
       const wy = y0 + yy;
@@ -509,14 +647,14 @@ export class Renderer {
 
         if (nearAir1) {
           // 2px-ish dark boundary outline (this row + the nearAir2 band below).
-          r = 42; g = 26; b = 16;
+          r = o1r; g = o1g; b = o1b;
         } else if (nearAir2 && depth > GRASS_DEPTH) {
-          r = 58; g = 36; b = 21; // soft second outline row on soil edges
+          r = o2r; g = o2g; b = o2b; // soft second outline row on soil edges
         } else if (depth <= GRASS_DEPTH && grassTex) {
           // Ripped grass edging: depth maps onto strip rows; the dark blade
           // gaps read as the classic under-grass shadow.
           const gx = wx % GRASS_TILE_W;
-          const gy = Math.min(grassTex.height - 1, 2 + depth * 2);
+          const gy = rowFor(depth);
           const gi = (gy * grassTex.width + gx) * 4;
           r = grassTex.data[gi]; g = grassTex.data[gi + 1]; b = grassTex.data[gi + 2];
           if (r + g + b < 30 && soilTex) {
@@ -584,11 +722,21 @@ export class Renderer {
     const worldH = terrain ? terrain.height : this.camera.worldH;
     const waterLevel = state.waterLevel != null ? state.waterLevel : worldH - 40;
 
-    // --- Camera follow: latest projectile, else the active worm. ---
+    // --- Camera follow: latest *interesting* projectile, else the active
+    // worm. Lingering ambience entities (flames, resting mines, embedded
+    // arrows) must not hold the camera hostage. ---
     const projectiles = state.projectiles || [];
-    if (projectiles.length) {
-      const p = projectiles[projectiles.length - 1];
-      this.camera.follow(p.x, p.y);
+    let followP = null;
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+      const p = projectiles[i];
+      const pt = p.type || p.weapon || p.kind || '';
+      if (pt === 'flame' || pt === 'fire' || pt === 'arrow-stuck') continue;
+      if ((pt === 'mine' || pt === 'arrow') && p.resting) continue;
+      followP = p;
+      break;
+    }
+    if (followP) {
+      this.camera.follow(followP.x, followP.y);
     } else if (state.activeWormId != null) {
       const aw = this._findWorm(state.activeWormId);
       if (aw && aw.alive !== false) this.camera.follow(aw.x, aw.y - 20);
@@ -599,6 +747,18 @@ export class Renderer {
     this._ageFx(dt);
     this._adoptPreexistingGraves(state, waterLevel);
     this._trackJump(state, dt);
+
+    // Sustained set-piece shake (earthquake / donkey / armageddon).
+    if (this._quake) {
+      this._quake.t += dt;
+      const q = this._quake;
+      if (q.t >= q.dur) {
+        this._quake = null;
+      } else {
+        const k = 1 - q.t / q.dur;
+        this.camera.shake(1.5 + q.mag * k);
+      }
+    }
 
     if (phase === 'game-over' && !this._victoryPlayed) {
       this._victoryPlayed = true;
@@ -632,7 +792,7 @@ export class Renderer {
     }
 
     const bounds = this.camera.viewBounds();
-    this._drawWaterLayer(ctx, WATER_BACK, waterLevel, bounds, worldH);
+    this._drawWaterLayer(ctx, this._water.back, waterLevel, bounds, worldH);
 
     // Crates
     const crates = state.crates || [];
@@ -677,13 +837,18 @@ export class Renderer {
     // Projectiles
     for (const p of projectiles) this._drawProjectile(ctx, p);
 
+    // Auxiliary entity arrays (defensive — the engine may expose flames,
+    // mines, sheep, arrows etc. as their own state lists OR as projectiles;
+    // both paths render, see _drawProjectile for the type-discriminated path).
+    this._drawAuxEntities(ctx, state);
+
     // Particles + fx rings/flashes
     this._drawParticles(ctx);
     this._drawRingsAndFlashes(ctx);
     this._drawRipples(ctx, waterLevel);
 
     // Front water
-    for (const layer of WATER_FRONT) {
+    for (const layer of this._water.front) {
       this._drawWaterLayer(ctx, layer, waterLevel, bounds, worldH);
     }
 
@@ -700,6 +865,33 @@ export class Renderer {
         const cx = active.x + Math.cos(aim) * 36 * facing;
         const cy = active.y - 8 - Math.sin(aim) * 36;
         drawCrosshair(ctx, cx, cy, this.time, aim, facing);
+      }
+    }
+
+    // Homing lock marker (assumed engine state: state.homingTarget {x, y};
+    // also drawn while a homing projectile carries its own .target).
+    const homingTarget = state.homingTarget
+      || (state.selectedWeapon === 'homing' && (state.pendingTarget || state.target)) || null;
+    if (homingTarget && homingTarget.x != null) {
+      drawHomingTarget(ctx, homingTarget.x, homingTarget.y, this.time, true);
+    }
+    for (const p of projectiles) {
+      if ((p.type || p.kind) === 'homing' && p.target && p.target.x != null) {
+        drawHomingTarget(ctx, p.target.x, p.target.y, this.time, !p.homingExpired);
+      }
+    }
+
+    // Placement ghost (girder preview / strike target) fed by integration.
+    if (this._ghost && phase === 'move') {
+      const gh = this._ghost;
+      if (gh.kind === 'target') {
+        drawStrikeTarget(ctx, gh.x, gh.y, this.time);
+      } else if (state.selectedWeapon === 'girder' || gh.kind === 'girder') {
+        drawGirderGhost(ctx, gh.x, gh.y, girderIndexForFuse(gh.angle ?? state.grenadeFuse ?? 1), {
+          long: gh.long !== false,
+          valid: gh.valid !== false,
+          t: this.time,
+        });
       }
     }
 
@@ -772,12 +964,15 @@ export class Renderer {
   _drawProjectile(ctx, p) {
     const type = p.type || p.weapon || p.kind || 'bazooka';
     const angle = Math.atan2(p.vy || 0, p.vx || 0);
+    const spin = p.spin != null ? p.spin : this.time * 5 * ((p.vx || 1) >= 0 ? 1 : -1);
     switch (type) {
       case 'grenade':
-        drawGrenade(ctx, p.x, p.y, p.spin != null ? p.spin : this.time * 5 * ((p.vx || 1) >= 0 ? 1 : -1));
+        drawGrenade(ctx, p.x, p.y, spin);
         break;
       case 'cluster':
       case 'clusterlet':
+      case 'bomblet':
+      case 'mortarlet':
         drawClusterBomblet(ctx, p.x, p.y, this.time * 7);
         break;
       case 'dynamite':
@@ -789,10 +984,82 @@ export class Renderer {
       case 'bazooka':
       case 'rocket':
       case 'shell':
-      case 'airstrike':
-      case 'missile':
         drawShell(ctx, p.x, p.y, angle, this.time);
         break;
+
+      // ---- Arsenal expansion (type names ASSUMED — coded defensively) ----
+      case 'homing':
+        // Red variant once homing has failed/expired (classic tell). Assumed
+        // discriminators: p.homingExpired | p.expired | p.homing === false.
+        drawHoming(ctx, p.x, p.y, angle,
+          !!(p.homingExpired || p.expired || p.homing === false), this.time);
+        break;
+      case 'mortar':
+        drawMortarShell(ctx, p.x, p.y, angle);
+        break;
+      case 'banana':
+      case 'bananalet':
+        drawBanana(ctx, p.x, p.y, spin);
+        break;
+      case 'holygrenade':
+        // Golden anticipation halo while resting (waiting for the choir).
+        drawHolyGrenade(ctx, p.x, p.y, spin, this.time, !!p.resting);
+        break;
+      case 'petrol':
+        drawPetrolBottle(ctx, p.x, p.y, spin, this.time);
+        break;
+      case 'airstrike':
+      case 'missile':
+      case 'strike-missile':
+      case 'napalm':
+      case 'napalm-missile':
+        drawStrikeMissile(ctx, p.x, p.y, angle, this.time);
+        break;
+      case 'arrow':
+      case 'longbow':
+        drawArrowProjectile(ctx, p.x, p.y, p.stuckAngle != null ? p.stuckAngle : angle);
+        break;
+      case 'mine':
+        drawMine(ctx, p.x, p.y, {
+          armed: !!(p.armed || p.triggered || (p.fuseLeft != null && p.fuseLeft > 0 && p.fuseLeft < 240)),
+          t: this.time,
+          angle: p.resting ? 0 : spin,
+        });
+        break;
+      case 'sheep':
+        drawSheep(ctx, p.x, p.y, {
+          facing: p.facing || ((p.vx || 1) >= 0 ? 1 : -1),
+          airborne: !!(p.airborne || (!p.resting && Math.abs(p.vy || 0) > 30)),
+          angle, t: this.time,
+        });
+        break;
+      case 'carpet':
+      case 'carpetbomb':
+        drawCarpet(ctx, p.x, p.y, this.time);
+        break;
+      case 'fireball':
+      case 'dragonball':
+        drawFireball(ctx, p.x, p.y, angle, this.time);
+        break;
+      case 'meteor':
+        drawMeteor(ctx, p.x, p.y, angle, this.time, p.size || p.scale || 1);
+        break;
+      case 'donkey':
+        drawDonkey(ctx, p.x, p.y, this.time);
+        break;
+      case 'girder':
+        drawGirder(ctx, p.x, p.y, girderIndexForFuse(p.angleIndex ?? p.angle ?? 1), p.long !== false);
+        break;
+      case 'flame':
+      case 'fire':
+      case 'flamelet':
+        drawFlame(ctx, p.x, p.y, {
+          size: p.size != null ? p.size : (p.energy != null ? p.energy : 1),
+          t: this.time,
+          seed: p.id != null ? p.id : ((p.x * 7 + p.y * 13) | 0) % 32,
+        });
+        break;
+
       default:
         ctx.fillStyle = '#3a3a3a';
         ctx.strokeStyle = OUTLINE;
@@ -801,6 +1068,61 @@ export class Renderer {
         ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+    }
+  }
+
+  /**
+   * Defensive rendering of entity lists the engine may expose alongside
+   * state.projectiles (exact shape unknowable pre-integration; every field
+   * read is optional). Supported: flames/fire, mines, sheep/walkers, arrows,
+   * setPieces/entities (type-discriminated via _drawProjectile).
+   */
+  _drawAuxEntities(ctx, state) {
+    const flames = state.flames || state.fire || null;
+    if (Array.isArray(flames)) {
+      for (let i = 0; i < flames.length; i++) {
+        const f = flames[i];
+        drawFlame(ctx, f.x, f.y, {
+          size: f.size != null ? f.size : (f.energy != null ? f.energy
+            : (f.turnsLeft != null ? f.turnsLeft / 4 : 1)),
+          t: this.time,
+          seed: f.id != null ? f.id : i,
+        });
+      }
+    }
+    const mines = state.mines;
+    if (Array.isArray(mines)) {
+      for (const mn of mines) {
+        drawMine(ctx, mn.x, mn.y, {
+          armed: !!(mn.armed || mn.triggered),
+          t: this.time,
+          angle: mn.angle || 0,
+        });
+      }
+    }
+    const walkers = state.sheep || state.walkers;
+    if (Array.isArray(walkers)) {
+      for (const sh of walkers) {
+        if (sh.type && sh.type !== 'sheep') { this._drawProjectile(ctx, sh); continue; }
+        drawSheep(ctx, sh.x, sh.y, {
+          facing: sh.facing || 1,
+          airborne: !!sh.airborne,
+          angle: Math.atan2(sh.vy || 0, sh.vx || 0),
+          t: this.time,
+        });
+      }
+    }
+    const arrows = state.arrows;
+    if (Array.isArray(arrows)) {
+      for (const ar of arrows) {
+        drawArrowProjectile(ctx, ar.x, ar.y, ar.angle || 0);
+      }
+    }
+    for (const key of ['setPieces', 'entities']) {
+      const list = state[key];
+      if (Array.isArray(list)) {
+        for (const e of list) this._drawProjectile(ctx, e);
+      }
     }
   }
 

@@ -21,6 +21,12 @@ import { fetchGame, fetchTurnsAfter, postTurn } from './api.js';
 
 const TICK_MS = 1000 / 60;
 
+// Weapons whose aiming involves clicking the map (strikes, placers, pickers).
+const TARGET_WEAPONS = new Set([
+    'teleport', 'airstrike', 'napalm', 'minestrike', 'carpetbomb',
+    'homing', 'girder', 'donkey', 'selectworm',
+]);
+
 async function boot() {
     await initAssets();
     const gameId = window.GAME_ID;
@@ -294,8 +300,20 @@ function runLiveTurn(sim, renderer, camera, hud, input) {
                 if (sim.phase === 'turn-over' || sim.phase === 'game-over') break;
             }
 
-            // Click-targeting is only meaningful for these weapons.
-            input.targetMode = ['teleport', 'airstrike'].includes(sim.state.selectedWeapon);
+            // Click-targeting weapons (strikes, placers, pickers). Homing's
+            // click only marks the target — the launch is aimed + charged.
+            input.targetMode = TARGET_WEAPONS.has(sim.state.selectedWeapon);
+            input.targetFires = sim.state.selectedWeapon !== 'homing';
+
+            // Girder placement ghost follows the cursor; angle from the fuse.
+            if (sim.state.selectedWeapon === 'girder' && sim.phase === 'move') {
+                input.onHoverWorld = (x, y) => renderer.setGhost?.({
+                    x, y, angle: sim.state.grenadeFuse ?? 1,
+                });
+            } else {
+                input.onHoverWorld = null;
+                renderer.setGhost?.(null);
+            }
 
             renderer.handleEvents(sim.drainEvents());
             renderer.render(dt); // renderer drives camera follow + update itself
