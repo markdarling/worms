@@ -10,6 +10,7 @@ export default defineConfig({
                 'resources/css/app.css',
                 'resources/js/app.js',
                 'resources/css/game.css',
+                'resources/css/admin.css',
                 'resources/js/game/main.js',
             ],
             refresh: true,
