@@ -167,3 +167,22 @@ Server does NOT simulate in v1 — it trusts the client and stores the determini
 
 ### Keybindings (input.js implements; hud.js should display a help hint)
 ←/→ walk · ↵ jump · ⌫ backflip · ↑/↓ aim · Space hold = charge, release = fire · 1-5 fuse · Tab/right-click weapon panel · click = target (teleport/airstrike) · mouse drag / edges = pan camera.
+
+## Expansion contract (arsenal + mapgen build, 19/08/2026)
+File ownership for the parallel build:
+- ENGINE-WEAPONS agent: engine/weapons.js, projectiles.js, constants.js, worm.js, sim.js, commands.js, selftest.js (+ new engine/fire.js, walkers.js as desired)
+- ENGINE-MAPGEN agent: engine/terrain.js, engine/placement.js (NEW), the findSpawnSpots region of physics.js ONLY
+- PRESENTATION agent: game/sprites.js, renderer.js, hud.js, sound.js, css/game.css
+
+Cross-agent API (binding):
+- placement.js: `export function generateWorld(seed, width, height, teams) -> { terrain, spots }`
+  where spots is an array of {x, y} in worm-id order (teams flattened in order), reachability-guaranteed,
+  spacing + team-interleave applied, terrain possibly repair-carved. Never throws for valid inputs;
+  deterministic from seed alone. sim.js newGame() switches to this (ENGINE-WEAPONS wires the call).
+- Theme: presentation derives the visual theme as config.theme ?? seeded pick from config.seed.
+  Themes are presentation-only; the sim never reads them.
+- Girder aiming: input.fuse is extended to 1..8 when girder is selected (8 placement angles);
+  integration maps Digit1..Digit8. target {x,y} click places the girder.
+- New weapon ids (fixed): homing, mortar, banana, holygrenade, axe, prod, baseballbat, dragonball,
+  handgun, uzi, minigun, longbow, petrol, napalm, flamethrower, mine, minestrike, carpetbomb,
+  sheep, kamikaze, blowtorch, drill, girder, parachute, earthquake, donkey, armageddon, selectworm.
