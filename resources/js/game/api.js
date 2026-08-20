@@ -29,3 +29,14 @@ export function postTurn(id, payload) {
         body: JSON.stringify(payload),
     });
 }
+
+export function postRematch(id, playerToken) {
+    return request(`/api/games/${id}/rematch`, {
+        method: 'POST',
+        body: JSON.stringify({ player_token: playerToken }),
+    });
+}
+
+export function fetchGameStatus(id) {
+    return request(`/api/games/${id}/status`);
+}

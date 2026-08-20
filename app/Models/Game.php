@@ -15,6 +15,7 @@ class Game extends Model
         'status',
         'mode',
         'current_turn',
+        'next_position',
         'snapshot',
         'winner',
         'share_key',
@@ -26,6 +27,7 @@ class Game extends Model
             'seed' => 'integer',
             'config' => 'array',
             'current_turn' => 'integer',
+            'next_position' => 'integer',
             'snapshot' => 'array',
         ];
     }

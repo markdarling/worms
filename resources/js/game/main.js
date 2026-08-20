@@ -6,7 +6,7 @@
 // is identical to what a networked client will use.
 
 import { Sim } from '../engine/sim.js';
-import { encodeCommands } from '../engine/commands.js';
+import { encodeCommands, decodeCommands } from '../engine/commands.js';
 import { Renderer } from './renderer.js';
 import { initAssets } from './sprites.js';
 import { Camera } from './camera.js';
@@ -17,7 +17,10 @@ import {
     ReplayBrowser, mountReplayButton, mountLinkActions, showNetBanner,
     hideNetBanner, showReplayFrame, hideReplayFrame,
 } from './replay-ui.js';
-import { fetchGame, fetchTurnsAfter, postTurn } from './api.js';
+import { fetchGame, fetchTurnsAfter, postTurn, postRematch } from './api.js';
+import { initTurnNotifications, notifyYourTurn } from './notify.js';
+import { captureHp, diffTurn, showTurnCard, showTaunt } from './turncard.js';
+import { computeGameStats } from './stats.js';
 
 const TICK_MS = 1000 / 60;
 
@@ -87,6 +90,46 @@ async function boot() {
     if (myPosition != null) {
         document.title = `Worms — ${config.teams[myPosition]?.name ?? `Team ${myPosition + 1}`}`;
     }
+    // Seat holders get a desktop notification when their turn arrives while
+    // the tab is hidden (permission asked on their first click/keypress).
+    if (remote && myPosition != null) initTurnNotifications();
+    // Remember this seat locally so the lobby's "Your games" list can find it
+    // again (no accounts — the browser is the identity).
+    if (remote && myPosition != null && window.PLAYER_TOKEN) {
+        try {
+            const seats = JSON.parse(localStorage.getItem('worms-seats') || '{}');
+            seats[gameId] = {
+                name: game.name,
+                position: myPosition,
+                team: config.teams[myPosition]?.name,
+                color: config.teams[myPosition]?.color,
+                url: `/play/${window.PLAYER_TOKEN}`,
+                seen: Date.now(),
+            };
+            localStorage.setItem('worms-seats', JSON.stringify(seats));
+        } catch { /* storage unavailable — the links page still exists */ }
+    }
+
+    // End-of-turn commentary card: hp captured after beginTurn (so sudden-death
+    // decay isn't credited to the acting team), diffed once the turn settles.
+    let bloodSeen = false;
+    let hpBefore = null;
+    const turnCard = {
+        begin: () => { hpBefore = captureHp(sim); },
+        finish: (actingTeam) => {
+            if (!hpBefore) return;
+            const stats = diffTurn(hpBefore, sim, actingTeam);
+            hpBefore = null;
+            const firstBlood = !bloodSeen && stats.deaths.length > 0;
+            if (stats.deaths.length > 0) bloodSeen = true;
+            showTurnCard({
+                teamName: config.teams[actingTeam]?.name ?? `Team ${actingTeam + 1}`,
+                color: config.teams[actingTeam]?.color,
+                stats,
+                firstBlood,
+            });
+        },
+    };
 
     sim.drainEvents();
     if (game.turns.length > 0) {
@@ -102,6 +145,7 @@ async function boot() {
         const instant = game.turns.slice(0, game.turns.length - cinematic.length);
         replayer.fastForward(instant);
         renderer.handleEvents([]); // ensure renderer observes rebuilt terrain
+        bloodSeen = sim.worms.some((w) => !w.alive);
 
         if (cinematic.length > 0) {
             const teamOf = (t) => config.teams[t.player_position]?.name ?? `Team ${t.player_position + 1}`;
@@ -109,8 +153,14 @@ async function boot() {
             showReplayFrame('', frameOpts);
             await replayer.play(
                 cinematic,
-                (t) => { showReplayFrame(`${teamOf(t)} · Turn ${t.number}`, frameOpts); hud.update(sim.state, sim.phase); },
+                (t) => {
+                    turnCard.begin();
+                    showReplayFrame(`${teamOf(t)} · Turn ${t.number}`, frameOpts);
+                    if (t.taunt) showTaunt(teamOf(t), config.teams[t.player_position]?.color, t.taunt);
+                    hud.update(sim.state, sim.phase);
+                },
                 () => hud.update(sim.state, sim.phase),
+                (t) => turnCard.finish(t.player_position),
             );
             hideReplayFrame();
         }
@@ -148,7 +198,20 @@ async function boot() {
         if (sim.phase === 'game-over') {
             hideNetBanner();
             startIdleRender(sim, renderer, hud); // keep the scene alive behind the banner
-            hud.showGameOver(sim.winner === 'draw' ? null : teamName(sim.winner));
+            // Stats come from re-simulating the full recorded game (cheap and
+            // always true); refetch so turns committed this session are in.
+            let stats = null;
+            try {
+                const full = await fetchGame(gameId);
+                stats = computeGameStats(config, full.turns);
+            } catch { /* stats are decoration — the overlay still shows */ }
+            hud.showGameOver(sim.winner === 'draw' ? null : teamName(sim.winner), {
+                stats,
+                onRematch: myToken ? async () => {
+                    const res = await postRematch(gameId, myToken);
+                    location.href = res.links_url;
+                } : null,
+            });
             break;
         }
 
@@ -165,14 +228,36 @@ async function boot() {
             // it back cinematically — the async replay feed in action.
             const arrived = await waitForTurns(gameId, turnNumber, teamName(nextTeam), sim, renderer, hud);
             if (!arrived) return; // fetch failure already surfaced
+            // Notify NOW if the arrived turns hand the go to us: the cinematic
+            // replay below is rAF-driven and stalls while the tab is hidden,
+            // so waiting for the banner would mean never notifying. Peek on a
+            // clone — the live sim must not advance before the replay.
+            try {
+                const peekAhead = Sim.fromSnapshot(config, sim.snapshot());
+                for (const t of arrived) {
+                    peekAhead.beginTurn(t.number);
+                    for (const cmd of decodeCommands(t.commands)) peekAhead.step(cmd);
+                }
+                if (peekAhead.phase !== 'game-over') {
+                    peekAhead.beginTurn(arrived[arrived.length - 1].number + 1);
+                    const upNext = peekAhead.state.worms.find((w) => w.id === peekAhead.state.activeWormId)?.teamIndex;
+                    if (upNext === myPosition) notifyYourTurn(game.name, teamName(myPosition));
+                }
+            } catch { /* peek is best-effort — the banner still shows */ }
             // replayer.play() runs beginTurn itself — calling it here too would
             // advance the team rotation twice and desync the replay.
             const frameOpts = { onSkip: () => replayer.skip() };
             showReplayFrame('', frameOpts);
             await replayer.play(
                 arrived,
-                (t) => { showReplayFrame(`${teamName(t.player_position)} · Turn ${t.number}`, frameOpts); hud.update(sim.state, sim.phase); },
+                (t) => {
+                    turnCard.begin();
+                    showReplayFrame(`${teamName(t.player_position)} · Turn ${t.number}`, frameOpts);
+                    if (t.taunt) showTaunt(teamName(t.player_position), config.teams[t.player_position]?.color, t.taunt);
+                    hud.update(sim.state, sim.phase);
+                },
                 () => hud.update(sim.state, sim.phase),
+                (t) => turnCard.finish(t.player_position),
             );
             hideReplayFrame();
             committedTurns = arrived[arrived.length - 1].number;
@@ -181,6 +266,7 @@ async function boot() {
 
         sim.beginTurn(turnNumber);
         renderer.handleEvents(sim.drainEvents());
+        turnCard.begin();
         const activeTeam = sim.state.worms.find((w) => w.id === sim.state.activeWormId)?.teamIndex ?? 0;
 
         if (remote) {
@@ -188,6 +274,7 @@ async function boot() {
             // (green banner + tab title), not a blocking overlay.
             document.title = `🔴 Your turn! — ${teamName(activeTeam)}`;
             showNetBanner(`Your turn — ${teamName(activeTeam)}`, 'turn');
+            notifyYourTurn(game.name, teamName(activeTeam)); // no-op unless hidden
         } else {
             await new Promise((resolve) => hud.showPassDevice(teamName(activeTeam), resolve));
         }
@@ -197,6 +284,7 @@ async function boot() {
         inLiveTurn = true;
         document.body.classList.add('my-turn'); // reveals the weapon dock
         await runLiveTurn(sim, renderer, camera, hud, input);
+        turnCard.finish(activeTeam); // your own commentary — brutal honesty included
         document.body.classList.remove('my-turn');
         inLiveTurn = false;
         input.enabled = false;
@@ -207,6 +295,16 @@ async function boot() {
 
         // Commit the recorded turn.
         const gameOver = sim.phase === 'game-over';
+        // Who's up next (peek on a clone — beginTurn mutates): stored on the
+        // server so it can push-notify the right seat and feed lobby status.
+        let nextPosition = null;
+        if (!gameOver) {
+            try {
+                const peekNext = Sim.fromSnapshot(config, sim.snapshot());
+                peekNext.beginTurn(turnNumber + 1);
+                nextPosition = peekNext.state.worms.find((w) => w.id === peekNext.state.activeWormId)?.teamIndex ?? null;
+            } catch { /* best-effort */ }
+        }
         const payload = {
             number: turnNumber,
             player_token: myToken ?? undefined,
@@ -216,6 +314,8 @@ async function boot() {
             state_hash: sim.stateHash(),
             game_over: gameOver,
             winner: gameOver ? (sim.winner === 'draw' ? 'draw' : teamName(sim.winner)) : null,
+            taunt: hud.takeTaunt?.() ?? null,
+            next_position: nextPosition,
         };
         try {
             await postTurn(gameId, payload);

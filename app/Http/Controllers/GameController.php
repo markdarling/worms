@@ -30,6 +30,9 @@ class GameController extends Controller
         // Config shape must exactly match the Sim config contract:
         // { seed, width, height, teams: [{name, color, worms}], wormHp, stamina, suddenDeathRound }
         $config = [
+            // Engine rules version — v2 adds weapon memory, health crates and
+            // pre-placed hazards. Older games (no `rules` key) replay as v1.
+            'rules' => 2,
             'seed' => $seed,
             'width' => $size['width'],
             'height' => $size['height'],

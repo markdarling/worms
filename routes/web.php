@@ -29,6 +29,9 @@ Route::post('/admin/logout', [\App\Http\Controllers\AdminController::class, 'log
 // CSRF validation is excluded for api/* in bootstrap/app.php.
 Route::prefix('api')->group(function () {
     Route::get('/games/{game}', [GameApiController::class, 'show']);
+    Route::get('/games/{game}/status', [GameApiController::class, 'status']);
     Route::get('/games/{game}/turns', [GameApiController::class, 'turns']);
     Route::post('/games/{game}/turns', [GameApiController::class, 'store']);
+    Route::post('/games/{game}/rematch', [GameApiController::class, 'rematch']);
+    Route::post('/push/subscribe', [GameApiController::class, 'pushSubscribe']);
 });

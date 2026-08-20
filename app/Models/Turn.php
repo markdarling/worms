@@ -17,6 +17,7 @@ class Turn extends Model
         'commands',
         'snapshot_after',
         'state_hash',
+        'taunt',
     ];
 
     protected function casts(): array

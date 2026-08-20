@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    // Web-push (closed-tab turn notifications). Generate keys with:
+    // php -r "require 'vendor/autoload.php'; print_r(Minishlink\WebPush\VAPID::createVapidKeys());"
+    'webpush' => [
+        'subject' => env('VAPID_SUBJECT'),
+        'public_key' => env('VAPID_PUBLIC_KEY'),
+        'private_key' => env('VAPID_PRIVATE_KEY'),
+    ],
+
 ];

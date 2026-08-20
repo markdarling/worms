@@ -9,6 +9,14 @@
         <p class="lobby-tagline">Asynchronous turn-based artillery — correspondence chess with explosions.</p>
     </header>
 
+    {{-- "Your games": seats remembered in this browser's localStorage (no
+         accounts). The game page records each seat visited; status comes from
+         the lightweight /api/games/{id}/status endpoint. --}}
+    <section class="lobby-card lobby-card--mine" id="my-games" hidden>
+        <h2 class="lobby-card-title">Your Games</h2>
+        <ul class="lobby-mygames" id="my-games-list"></ul>
+    </section>
+
     <section class="lobby-card lobby-card--new-game">
         <h2 class="lobby-card-title">New Game</h2>
 
@@ -63,6 +71,7 @@
                 <label class="lobby-form-label" for="sudden-death-round">Sudden death round</label>
                 <input class="lobby-form-input" type="number" id="sudden-death-round" name="sudden_death_round"
                        value="{{ old('sudden_death_round', 10) }}" min="1" max="100" required>
+                <p class="lobby-form-help">From this round the water rises faster every round and all worms wither 5&nbsp;HP a turn — no game drags on forever.</p>
             </div>
 
             <div class="lobby-form-row">
@@ -79,6 +88,64 @@
     </section>
 
 </main>
+
+{{-- "Your games" list: seats live in localStorage['worms-seats'] (written by
+     the game page). Each row shows whose turn it is via /status. --}}
+<script>
+    (function () {
+        let seats;
+        try { seats = JSON.parse(localStorage.getItem('worms-seats') || '{}'); } catch { return; }
+        const ids = Object.keys(seats).sort((a, b) => (seats[b].seen || 0) - (seats[a].seen || 0)).slice(0, 15);
+        if (!ids.length) return;
+
+        const card = document.getElementById('my-games');
+        const list = document.getElementById('my-games-list');
+        card.hidden = false;
+
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+            { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+        ));
+        const forget = (id) => {
+            delete seats[id];
+            try { localStorage.setItem('worms-seats', JSON.stringify(seats)); } catch { /* ignore */ }
+        };
+
+        for (const id of ids) {
+            const seat = seats[id];
+            const li = document.createElement('li');
+            li.className = 'lobby-mygame';
+            li.innerHTML = `
+                <span class="lobby-team-chip" style="--team-color: ${esc(seat.color || '#888')}">${esc(seat.team || '?')}</span>
+                <a class="lobby-mygame-name" href="${esc(seat.url)}">${esc(seat.name || 'Game')}</a>
+                <span class="lobby-mygame-status">…</span>
+                <button type="button" class="lobby-mygame-forget" title="Remove from this list">✕</button>
+            `;
+            li.querySelector('.lobby-mygame-forget').addEventListener('click', () => { forget(id); li.remove(); });
+            list.appendChild(li);
+
+            const badge = li.querySelector('.lobby-mygame-status');
+            fetch(`/api/games/${id}/status`, { headers: { Accept: 'application/json' } })
+                .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+                .then((s) => {
+                    if (s.status === 'finished') {
+                        badge.textContent = s.winner && s.winner !== 'draw' ? `🏁 ${s.winner} won` : '🏁 Draw';
+                        badge.classList.add('is-finished');
+                    } else if (s.next_position === seat.position) {
+                        badge.textContent = '🔴 Your move!';
+                        badge.classList.add('is-yourmove');
+                    } else if (s.next_position != null && s.teams && s.teams[s.next_position]) {
+                        badge.textContent = `⏳ ${s.teams[s.next_position].name}'s move`;
+                    } else {
+                        badge.textContent = `⏳ Turn ${s.current_turn}`;
+                    }
+                })
+                .catch((e) => {
+                    if (String(e.message) === '404') { forget(id); li.remove(); return; }
+                    badge.textContent = '—';
+                });
+        }
+    })();
+</script>
 
 {{-- Minimal page behaviour: show/hide team rows to match the team count.
      Hidden rows have their inputs disabled so they are not submitted. --}}

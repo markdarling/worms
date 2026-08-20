@@ -13,6 +13,8 @@
         window.PLAYER_POSITION = @json($playerPosition ?? null);
         window.SPECTATE_URL = @json(route('games.show', $game));
         window.LINKS_URL = @json($linksUrl ?? null);
+        window.GAME_NAME = @json($game->name);
+        window.VAPID_PUBLIC_KEY = @json(config('services.webpush.public_key'));
     </script>
     @vite(['resources/css/game.css', 'resources/js/game/main.js'])
 </head>
