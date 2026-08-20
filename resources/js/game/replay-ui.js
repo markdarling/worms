@@ -30,7 +30,7 @@ const BAR_CSS = `
 .replay-bar button:hover:not(:disabled) { background: rgba(255,255,255,0.26); }
 .replay-bar button:disabled { opacity: 0.35; cursor: default; }
 .replay-bar .replay-label { font-size: 13px; padding: 0 6px; min-width: 130px; text-align: center; }
-.replay-bar .replay-again-icon { font-size: 17px; line-height: 1; vertical-align: -2px; }
+.replay-bar .replay-again { font-size: 20px; line-height: 1; padding: 4px 13px; }
 .replay-bar .replay-label small { display: block; font-size: 10px; opacity: 0.7; }
 .replay-bar .replay-speed.on { background: #e8b445; color: #1b1408; }
 .replay-bar .replay-copied { background: #45c860 !important; color: #06220c; }
@@ -245,7 +245,7 @@ export class ReplayBrowser {
             <button data-act="prev" title="Previous turn">◀</button>
             <div class="replay-label"><span data-el="title"></span><small data-el="sub"></small></div>
             <button data-act="next" title="Next turn">▶</button>
-            <button data-act="again" title="Watch this turn again"><span class="replay-again-icon">⟳</span> Replay</button>
+            <button data-act="again" class="replay-again" title="Watch this turn again">⟳</button>
             <button data-act="speed1" class="replay-speed on">1×</button>
             <button data-act="speed2" class="replay-speed">2×</button>
             <button data-act="speed4" class="replay-speed">4×</button>

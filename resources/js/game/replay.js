@@ -1,7 +1,23 @@
 // Replays recorded turns through a live Sim — paced (cinematic) or instant.
 // Because the sim is deterministic, a replay IS the original turn.
+//
+// Dead-air compression: async players think for minutes between inputs, and
+// every idle tick is faithfully recorded. Watching that 1:1 is watching a
+// motionless worm — so playback fast-forwards (IDLE_MULT) through stretches
+// where the player gave no input AND the world is settled, after a short
+// grace so pauses between actions keep a natural rhythm. Every tick is still
+// simulated in order — determinism is untouched, only wall-clock pacing.
 
 import { decodeCommands } from '../engine/commands.js';
+
+const IDLE_MULT = 16;        // fast-forward factor through dead air
+const IDLE_GRACE_TICKS = 40; // ~0.7s of quiet before the fast-forward kicks in
+
+function isIdleCmd(c) {
+    return !c.left && !c.right && !c.jump && !c.backflip &&
+        !c.aimUp && !c.aimDown && !c.charge && !c.fire &&
+        !c.weapon && !c.fuse && !c.target;
+}
 
 export class ReplayPlayer {
     constructor(sim, renderer, camera) {
@@ -33,6 +49,7 @@ export class ReplayPlayer {
             onTurnStart?.(t);
             const cmds = decodeCommands(t.commands);
             let i = 0;
+            let quiet = 0; // consecutive idle-and-settled ticks
             await new Promise((resolve) => {
                 let last = performance.now();
                 let acc = 0;
@@ -44,12 +61,21 @@ export class ReplayPlayer {
                         resolve();
                         return;
                     }
-                    acc += Math.min(now - last, 100) * this.speed;
+                    const mult = quiet >= IDLE_GRACE_TICKS ? IDLE_MULT : 1;
+                    acc += Math.min(now - last, 100) * this.speed * mult;
                     last = now;
                     const tickMs = 1000 / 60;
                     let steps = 0;
-                    while (acc >= tickMs && i < cmds.length && steps < 8 * this.speed) {
-                        this.sim.step(cmds[i++]);
+                    while (acc >= tickMs && i < cmds.length && steps < 8 * this.speed * mult) {
+                        const cmd = cmds[i++];
+                        this.sim.step(cmd);
+                        if (isIdleCmd(cmd) && this.sim._settled()) quiet++;
+                        else {
+                            // Action resumed mid-burst: drop leftover budget so
+                            // the first real input plays at normal pace.
+                            if (quiet >= IDLE_GRACE_TICKS) acc = 0;
+                            quiet = 0;
+                        }
                         acc -= tickMs;
                         steps++;
                     }
