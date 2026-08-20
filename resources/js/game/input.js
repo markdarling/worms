@@ -98,6 +98,9 @@ export class InputRecorder {
         }
         if (!this.enabled) return;
 
+        // Any game control ends a manual camera pan — snap back to the worm.
+        this.camera.resumeFollow?.();
+
         if (HELD_KEYS[e.code]) {
             e.preventDefault();
             this.held[HELD_KEYS[e.code]] = true;

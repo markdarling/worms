@@ -4,8 +4,8 @@
 //   new Camera(viewW, viewH, worldW, worldH)
 //   follow(x, y)      — smooth pan target
 //   shake(strength)   — screen shake, decays
-//   nudge(dx, dy)     — manual pan (drag / edge scroll), suspends follow ~10s
-//   resumeFollow()    — cancel the suspension early (the action resumed)
+//   nudge(dx, dy)     — manual pan (drag / edge scroll), suspends follow
+//   resumeFollow()    — end the suspension (player input / the action resumed)
 //   update(dt)
 //   apply(ctx) / worldToScreen(x, y) / screenToWorld(x, y)
 //   zoom              — supported, default 1
@@ -19,7 +19,6 @@
 //   - If the view is larger than the world (at current zoom) the world is
 //     centred (letterboxed) on that axis.
 
-const FOLLOW_SUSPEND_SECS = 10;
 const SMOOTHING = 5.5;      // higher = snappier follow
 const SHAKE_DECAY = 4.2;    // exponential decay rate
 const SHAKE_MAX = 26;       // px cap
@@ -38,7 +37,7 @@ export class Camera {
     this.tx = this.x;
     this.ty = this.y;
 
-    this._suspend = 0;      // seconds of follow suspension remaining
+    this._suspended = false; // manual pan active — follow paused indefinitely
     this._shakeMag = 0;
     this._shakeX = 0;
     this._shakeY = 0;
@@ -67,27 +66,29 @@ export class Camera {
 
   /**
    * Manual pan by (dx, dy) CSS px (drag / edge scroll).
-   * Suspends smooth-follow so the player can look around. The suspension
-   * ends when the follow subject moves again (renderer calls resumeFollow)
-   * or after FOLLOW_SUSPEND_SECS of no panning — whichever comes first.
+   * Suspends smooth-follow indefinitely so the player can look around. The
+   * suspension ends only via resumeFollow() — player input, the active worm
+   * moving, or a projectile in flight (renderer/input call it).
    */
   nudge(dx, dy) {
     this.x += dx / this.zoom;
     this.y += dy / this.zoom;
     this.tx = this.x;
     this.ty = this.y;
-    this._suspend = FOLLOW_SUSPEND_SECS;
+    this._suspended = true;
     this._clamp();
   }
 
-  /** The action resumed (worm walked, shot fired) — snap back to following. */
+  /** The action resumed (input given, worm walked, shot fired) — follow again. */
   resumeFollow() {
-    this._suspend = 0;
+    this._suspended = false;
   }
 
   /**
    * Zoom by `factor`, keeping the world point under (sx, sy) CSS px fixed.
-   * Clamped between whole-map-visible and 2.5x.
+   * Clamped between whole-map-visible and 2.5x. Like nudge(), this is a
+   * manual camera action (trackpad scroll / wheel), so it suspends follow —
+   * without this the view glides back to the worm the moment scrolling stops.
    */
   zoomAt(factor, sx, sy) {
     const before = this.screenToWorld(sx, sy);
@@ -98,15 +99,14 @@ export class Camera {
     this.y += before.y - after.y;
     this.tx = this.x;
     this.ty = this.y;
+    this._suspended = true;
     this._clamp();
   }
 
   update(dt) {
     if (!Number.isFinite(dt) || dt <= 0) dt = 1 / 60;
 
-    if (this._suspend > 0) {
-      this._suspend -= dt;
-    } else {
+    if (!this._suspended) {
       // Critically-damped-ish exponential approach to the target.
       const k = 1 - Math.exp(-SMOOTHING * dt);
       this.x += (this.tx - this.x) * k;

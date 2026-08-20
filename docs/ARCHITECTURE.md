@@ -101,7 +101,8 @@ export class Camera {
   constructor(viewW, viewH, worldW, worldH)
   follow(x, y)         // smooth pan target
   shake(strength)
-  nudge(dx, dy)        // manual pan (drag / edge scroll), suspends follow briefly
+  nudge(dx, dy)        // manual pan (drag / edge scroll), suspends follow until
+                       // resumeFollow() (player input / worm moves / shot in flight)
   update(dt)
   apply(ctx) / worldToScreen(x,y) / screenToWorld(x,y)
   zoom                 // supported but default 1
