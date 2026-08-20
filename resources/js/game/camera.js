@@ -4,7 +4,8 @@
 //   new Camera(viewW, viewH, worldW, worldH)
 //   follow(x, y)      — smooth pan target
 //   shake(strength)   — screen shake, decays
-//   nudge(dx, dy)     — manual pan (drag / edge scroll), suspends follow ~2s
+//   nudge(dx, dy)     — manual pan (drag / edge scroll), suspends follow ~5s
+//   resumeFollow()    — cancel the suspension early (the action resumed)
 //   update(dt)
 //   apply(ctx) / worldToScreen(x, y) / screenToWorld(x, y)
 //   zoom              — supported, default 1
@@ -18,7 +19,7 @@
 //   - If the view is larger than the world (at current zoom) the world is
 //     centred (letterboxed) on that axis.
 
-const FOLLOW_SUSPEND_SECS = 2;
+const FOLLOW_SUSPEND_SECS = 5;
 const SMOOTHING = 5.5;      // higher = snappier follow
 const SHAKE_DECAY = 4.2;    // exponential decay rate
 const SHAKE_MAX = 26;       // px cap
@@ -66,7 +67,9 @@ export class Camera {
 
   /**
    * Manual pan by (dx, dy) CSS px (drag / edge scroll).
-   * Suspends smooth-follow for ~2 seconds so the player can look around.
+   * Suspends smooth-follow so the player can look around. The suspension
+   * ends when the follow subject moves again (renderer calls resumeFollow)
+   * or after FOLLOW_SUSPEND_SECS of no panning — whichever comes first.
    */
   nudge(dx, dy) {
     this.x += dx / this.zoom;
@@ -74,6 +77,27 @@ export class Camera {
     this.tx = this.x;
     this.ty = this.y;
     this._suspend = FOLLOW_SUSPEND_SECS;
+    this._clamp();
+  }
+
+  /** The action resumed (worm walked, shot fired) — snap back to following. */
+  resumeFollow() {
+    this._suspend = 0;
+  }
+
+  /**
+   * Zoom by `factor`, keeping the world point under (sx, sy) CSS px fixed.
+   * Clamped between whole-map-visible and 2.5x.
+   */
+  zoomAt(factor, sx, sy) {
+    const before = this.screenToWorld(sx, sy);
+    const fit = Math.min(this.viewW / this.worldW, this.viewH / this.worldH);
+    this.zoom = Math.max(Math.min(1, fit), Math.min(2.5, this.zoom * factor));
+    const after = this.screenToWorld(sx, sy);
+    this.x += before.x - after.x;
+    this.y += before.y - after.y;
+    this.tx = this.x;
+    this.ty = this.y;
     this._clamp();
   }
 

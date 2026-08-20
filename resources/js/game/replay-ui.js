@@ -9,6 +9,8 @@ import { Sim } from '../engine/sim.js';
 import { Renderer } from './renderer.js';
 import { Camera } from './camera.js';
 import { ReplayPlayer } from './replay.js';
+import { InputRecorder } from './input.js';
+import { captureHp, diffTurn, showTurnCard, showTaunt } from './turncard.js';
 
 const BAR_CSS = `
 .replay-bar {
@@ -182,6 +184,10 @@ export function hideNetBanner() {
 let replayFrameEls = null;
 export function showReplayFrame(subtitle = '', { onSkip } = {}) {
     injectStyles();
+    // body.replay-mode hides the controls hint + weapon dock and adds the
+    // letterbox (game.css) — catch-up replays get the same chrome as the
+    // replay browser.
+    document.body.classList.add('replay-mode');
     if (!replayFrameEls) {
         const frame = document.createElement('div');
         frame.className = 'replay-frame';
@@ -200,6 +206,7 @@ export function showReplayFrame(subtitle = '', { onSkip } = {}) {
     skipBtn.onclick = onSkip ?? null;
 }
 export function hideReplayFrame() {
+    document.body.classList.remove('replay-mode');
     if (!replayFrameEls) return;
     replayFrameEls.frame.style.display = 'none';
     replayFrameEls.badge.style.display = 'none';
@@ -301,6 +308,12 @@ export class ReplayBrowser {
         const sim = Sim.newGame(this.config);
         const camera = new Camera(window.innerWidth, window.innerHeight, this.config.width, this.config.height);
         const renderer = new Renderer(this.canvas, sim, camera);
+        // Drag-to-pan + wheel-zoom while watching (recorder stays disabled —
+        // no game inputs, just the camera hooks).
+        this._input?.detach();
+        this._input = new InputRecorder(this.canvas, camera);
+        this._input.onPan = (dx, dy) => camera.nudge(dx, dy);
+        this._input.attach();
         const player = new ReplayPlayer(sim, renderer, camera);
         player.setSpeed(this._speed);
         this._player = player;
@@ -312,10 +325,25 @@ export class ReplayBrowser {
         renderer.handleEvents([]);
 
         this._playing = true;
+        let hpBefore = null;
+        const bloodBefore = sim.worms.some((w) => !w.alive);
         await player.play(
             [turns[n - 1]],
+            (t) => {
+                hpBefore = captureHp(sim);
+                if (t.taunt) showTaunt(this._teamNameFor(t), this.config.teams[t.player_position]?.color, t.taunt);
+                this.hud?.update?.(sim.state, sim.phase);
+            },
             () => this.hud?.update?.(sim.state, sim.phase),
-            () => this.hud?.update?.(sim.state, sim.phase),
+            (t) => {
+                const stats = diffTurn(hpBefore, sim, t.player_position);
+                showTurnCard({
+                    teamName: this._teamNameFor(t),
+                    color: this.config.teams[t.player_position]?.color,
+                    stats,
+                    firstBlood: !bloodBefore && stats.deaths.length > 0,
+                });
+            },
         );
         this._playing = false;
 

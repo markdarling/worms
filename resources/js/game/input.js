@@ -50,6 +50,11 @@ export class InputRecorder {
             this._dragMoved = false;
             this._dragLast = { x: e.clientX, y: e.clientY };
         });
+        on(this.canvas, 'wheel', (e) => {
+            e.preventDefault();
+            const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY; // lines -> px
+            this.camera.zoomAt(Math.exp(-dy * 0.0012), e.clientX, e.clientY);
+        }, { passive: false });
         on(window, 'mousemove', (e) => {
             // Ghost previews (girder placement) track the cursor in world space.
             if (this.enabled && this.targetMode && this.onHoverWorld) {
@@ -83,6 +88,8 @@ export class InputRecorder {
     }
 
     _keydown(e) {
+        // Typing in a text field (taunt box) must never drive the worm.
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
         if (e.repeat) return;
         if (e.code === 'Tab') {
             e.preventDefault();
@@ -107,6 +114,7 @@ export class InputRecorder {
     }
 
     _keyup(e) {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
         if (HELD_KEYS[e.code]) {
             e.preventDefault();
             this.held[HELD_KEYS[e.code]] = false;

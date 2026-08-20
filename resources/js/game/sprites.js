@@ -759,8 +759,10 @@ export function drawGravestone(ctx, x, y, t = 0) {
 // Crate (+ parachute)
 // ---------------------------------------------------------------------------
 
-export function drawCrate(ctx, x, y, { parachute = false, t = 0 } = {}) {
-  if (assetsReady && sheets.crate) {
+export function drawCrate(ctx, x, y, { parachute = false, t = 0, health = false } = {}) {
+  // Health crates always draw procedurally (white box, red cross) so they
+  // read differently from wooden weapon crates at a glance.
+  if (!health && assetsReady && sheets.crate) {
     const sh = sheets.crate;
     // Frames 45+ are the collect-dissolve — loop the spin/shine cycle only.
     const spinFrames = Math.min(45, sh.frames);
@@ -821,40 +823,84 @@ export function drawCrate(ctx, x, y, { parachute = false, t = 0 } = {}) {
     ctx.restore();
   }
 
-  // Box: 16×14 wooden crate with planks.
+  // Box: 16×14 crate — wooden planks, or white first-aid box for health.
   const w = 16, h = 14;
   const grad = ctx.createLinearGradient(0, -h, 0, 0);
-  grad.addColorStop(0, '#c98b46');
-  grad.addColorStop(1, '#9c6428');
+  grad.addColorStop(0, health ? '#fbf8ee' : '#c98b46');
+  grad.addColorStop(1, health ? '#ddd6c2' : '#9c6428');
   ctx.fillStyle = grad;
   ctx.fillRect(-w / 2, -h, w, h);
 
-  // Plank lines
-  ctx.strokeStyle = '#7a4a1c';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(-w / 2, -h / 2);
-  ctx.lineTo(w / 2, -h / 2);
-  ctx.moveTo(-w / 2 + 1, -h);
-  ctx.lineTo(w / 2 - 1, 0);
-  ctx.stroke();
+  if (!health) {
+    // Plank lines
+    ctx.strokeStyle = '#7a4a1c';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, -h / 2);
+    ctx.lineTo(w / 2, -h / 2);
+    ctx.moveTo(-w / 2 + 1, -h);
+    ctx.lineTo(w / 2 - 1, 0);
+    ctx.stroke();
+  }
 
   // Edge frame + outline
-  ctx.strokeStyle = '#b57a37';
+  ctx.strokeStyle = health ? '#c9c2ac' : '#b57a37';
   ctx.lineWidth = 2;
   ctx.strokeRect(-w / 2 + 1.5, -h + 1.5, w - 3, h - 3);
   ctx.strokeStyle = OUTLINE;
   ctx.lineWidth = 1.3;
   ctx.strokeRect(-w / 2, -h, w, h);
 
-  // Health-cross style marker (classic crate stamp)
-  ctx.fillStyle = '#f5efdd';
+  // Cross stamp: red on health, cream on weapon crates
+  ctx.fillStyle = health ? '#e04141' : '#f5efdd';
   ctx.fillRect(-2, -h / 2 - 4.5, 4, 9);
   ctx.fillRect(-4.5, -h / 2 - 2, 9, 4);
   ctx.strokeStyle = OUTLINE;
   ctx.lineWidth = 0.8;
   ctx.strokeRect(-2, -h / 2 - 4.5, 4, 9);
 
+  ctx.restore();
+}
+
+// Oil drum hazard: rusty red barrel with hazard band and oily sheen.
+export function drawDrum(ctx, x, y, t = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  const w = 14, h = 18;
+  const grad = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+  grad.addColorStop(0, '#a33327');
+  grad.addColorStop(0.45, '#d0553f');
+  grad.addColorStop(1, '#7e2318');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(-w / 2, -h / 2, w, h, 2.5);
+  else ctx.rect(-w / 2, -h / 2, w, h);
+  ctx.fill();
+  // Ribs
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.28)';
+  ctx.lineWidth = 1.4;
+  for (const ry of [-h / 2 + 4, 0, h / 2 - 4]) {
+    ctx.beginPath();
+    ctx.moveTo(-w / 2 + 1, ry);
+    ctx.lineTo(w / 2 - 1, ry);
+    ctx.stroke();
+  }
+  // Hazard label: small warning diamond that glints
+  const glint = 0.75 + 0.25 * Math.sin(t * 2.1);
+  ctx.save();
+  ctx.globalAlpha = glint;
+  ctx.fillStyle = '#f2c14b';
+  ctx.translate(0, 1);
+  ctx.rotate(Math.PI / 4);
+  ctx.fillRect(-3, -3, 6, 6);
+  ctx.restore();
+  // Outline
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(-w / 2, -h / 2, w, h, 2.5);
+  else ctx.rect(-w / 2, -h / 2, w, h);
+  ctx.stroke();
   ctx.restore();
 }
 

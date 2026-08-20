@@ -19,6 +19,7 @@
 // 'replay-mode' while a replay is showing.
 
 import { getWeaponIcon, resolveTeamColor } from './sprites.js';
+import { sounds } from './sound.js';
 
 // Dock layout: WA's classic F1–F12 panel grouping (WEAPONS.md), implement
 // tier only. Each group renders as a 2-row column cluster with a subtle
@@ -131,6 +132,7 @@ const KEYBINDINGS = [
   ['1–8', 'girder angle'],
   ['Click', 'target (teleport / strikes / girder)'],
   ['Drag / edges', 'pan camera'],
+  ['Wheel', 'zoom'],
 ];
 
 const PHASE_LABELS = {
@@ -181,7 +183,16 @@ export class Hud {
     n.windChevR = el('div', 'hud-wind__chevrons hud-wind__chevrons--right', windBar, '››››');
     el('div', 'hud-wind__notch', windBar);
 
-    const turnBox = el('div', 'hud-turnbox', top);
+    // Top-right cluster: mute button just left of the turn counter.
+    const topRight = el('div', 'hud-topright', top);
+    const mute = el('button', 'hud-mute', topRight, sounds.muted ? '🔇' : '🔊');
+    mute.type = 'button';
+    mute.title = 'Toggle sound';
+    mute.addEventListener('click', () => {
+      sounds.setMuted(!sounds.muted);
+      mute.textContent = sounds.muted ? '🔇' : '🔊';
+    });
+    const turnBox = el('div', 'hud-turnbox', topRight);
     n.turn = el('div', 'hud-turn', turnBox, 'Turn 1 · Round 1');
     n.phase = el('div', 'hud-phase', turnBox, '');
 
@@ -207,7 +218,12 @@ export class Hud {
     // root because the dock clips its own overflow (horizontal scroll).
     n.hint = el('div', 'hud-hint', this.root, '');
 
-    n.panel = el('div', 'hud-weapons', this.root);
+    // Dock wrapper: a bar above the weapon dock carries the taunt box (left)
+    // and the collapsible controls hint (right, expands upwards).
+    n.dockwrap = el('div', 'hud-dockwrap', this.root);
+    n.dockbar = el('div', 'hud-dockbar', n.dockwrap);
+
+    n.panel = el('div', 'hud-weapons', n.dockwrap);
     const dock = el('div', 'hud-weapons__dock', n.panel);
     n.cells = {};
     for (const group of WEAPON_GROUPS) {
@@ -245,9 +261,9 @@ export class Hud {
       n.fuseBtns.push(b);
     }
 
-    // ---- Keybinding hint strip (collapsible, bottom-right) ----
-    const keys = el('div', 'hud-keys', this.root);
-    const keysToggle = el('button', 'hud-keys__toggle', keys, 'Controls ▾');
+    // ---- Keybinding hint strip (top-right of the dock, expands upwards) ----
+    const keys = el('div', 'hud-keys', n.dockbar);
+    const keysToggle = el('button', 'hud-keys__toggle', keys, 'Controls ▴');
     keysToggle.type = 'button';
     const keysBody = el('div', 'hud-keys__body', keys);
     for (const [k, desc] of KEYBINDINGS) {
@@ -257,11 +273,29 @@ export class Hud {
     }
     keysToggle.addEventListener('click', () => {
       const open = keys.classList.toggle('is-open');
-      keysToggle.textContent = open ? 'Controls ▴' : 'Controls ▾';
+      keysToggle.textContent = open ? 'Controls ▾' : 'Controls ▴';
     });
 
+    // ---- Taunt box: optional one-liner attached to the committed turn,
+    // shown to opponents during the replay. Visible only on body.my-turn.
+    // Lives top-left of the weapon dock (CSS `order` puts it before keys). ----
+    const taunt = el('div', 'hud-taunt hud-panel-look', n.dockbar);
+    n.tauntInput = el('input', 'hud-taunt__input', taunt);
+    n.tauntInput.type = 'text';
+    n.tauntInput.maxLength = 160;
+    n.tauntInput.placeholder = '💬 Say something with your shot…';
+
     // ---- Sudden death banner (hidden until triggered) ----
-    n.sudden = el('div', 'hud-sudden', this.root, 'SUDDEN DEATH — the water rises!');
+    n.sudden = el('div', 'hud-sudden', this.root, 'SUDDEN DEATH — the water rises and worms wither!');
+  }
+
+  /** Read + clear the taunt box (called at turn commit). */
+  takeTaunt() {
+    const input = this._n.tauntInput;
+    if (!input) return null;
+    const v = input.value.trim();
+    input.value = '';
+    return v.length ? v.slice(0, 160) : null;
   }
 
   // -----------------------------------------------------------------------
@@ -367,14 +401,20 @@ export class Hud {
       this._teamMax = new Array(teamCount).fill(1);
     }
 
-    // Totals
+    // Totals. All bars share ONE scale (the biggest team total ever seen) so
+    // a 4-worm team's bar is visibly longer than a 2-worm team's — per-team
+    // scales would show every team as 100% at the start.
+    const totals = new Array(teamCount).fill(0);
+    for (const w of worms) {
+      const i = w.teamIndex ?? 0;
+      if (w.alive !== false) totals[i] += Math.max(0, w.hp || 0);
+    }
     for (let i = 0; i < teamCount; i++) {
-      let total = 0;
-      for (const w of worms) {
-        if ((w.teamIndex ?? 0) === i && w.alive !== false) total += Math.max(0, w.hp || 0);
-      }
-      this._teamMax[i] = Math.max(this._teamMax[i], total);
-      const frac = total / this._teamMax[i];
+      this._teamMax[i] = Math.max(this._teamMax[i], totals[i]);
+    }
+    const scale = Math.max(...this._teamMax);
+    for (let i = 0; i < teamCount; i++) {
+      const frac = totals[i] / scale;
       const r = this._teamRows[i];
       if (frac !== r.lastFrac) {
         r.lastFrac = frac;
@@ -489,7 +529,12 @@ export class Hud {
     btn.focus();
   }
 
-  showGameOver(winnerName) {
+  /**
+   * Game-over overlay. opts:
+   *   stats     — [{name, color, dealt, biggest, kills, lost, alive}] (stats.js)
+   *   onRematch — async fn; shown as a Rematch button when provided
+   */
+  showGameOver(winnerName, opts = {}) {
     this._removeOverlay();
     const ov = el('div', 'hud-overlay hud-overlay--gameover', this.root);
     const card = el('div', 'hud-overlay__card', ov);
@@ -497,7 +542,45 @@ export class Hud {
     el('div', 'hud-overlay__kicker', card, draw ? 'It’s a…' : 'Victory for');
     el('div', 'hud-overlay__name', card, draw ? 'DRAW!' : winnerName);
     el('div', 'hud-overlay__sub', card, draw ? 'Nobody wriggles away a winner.' : 'The other worms send their regards.');
-    const btn = el('a', 'hud-btn hud-btn--big', card, 'Back to lobby');
+
+    if (opts.stats && opts.stats.length) {
+      const table = el('table', 'hud-stats', card);
+      const thead = el('thead', null, table);
+      const head = el('tr', null, thead);
+      for (const h of ['', 'Dmg', 'Best turn', 'Kills', 'Lost', 'Alive']) {
+        el('th', null, head, h);
+      }
+      const body = el('tbody', null, table);
+      for (const t of opts.stats) {
+        const row = el('tr', null, body);
+        const nameCell = el('td', 'hud-stats__team', row);
+        const chip = el('span', 'hud-stats__chip', nameCell);
+        chip.style.background = t.color;
+        nameCell.appendChild(document.createTextNode(t.name));
+        el('td', null, row, String(t.dealt));
+        el('td', null, row, String(t.biggest));
+        el('td', null, row, String(t.kills));
+        el('td', null, row, String(t.lost));
+        el('td', null, row, String(t.alive));
+      }
+    }
+
+    const btns = el('div', 'hud-overlay__btns', card);
+    if (opts.onRematch) {
+      const rm = el('button', 'hud-btn hud-btn--big', btns, '⚔ Rematch!');
+      rm.type = 'button';
+      rm.addEventListener('click', async () => {
+        rm.disabled = true;
+        rm.textContent = 'Setting up…';
+        try {
+          await opts.onRematch();
+        } catch {
+          rm.disabled = false;
+          rm.textContent = '⚔ Rematch!';
+        }
+      });
+    }
+    const btn = el('a', 'hud-btn hud-btn--big', btns, 'Back to lobby');
     btn.href = '/';
     this._overlay = ov;
   }

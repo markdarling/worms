@@ -82,7 +82,16 @@ class SoundBank {
     }
   }
 
+  get muted() {
+    try { return localStorage.getItem('worms-muted') === '1'; } catch { return false; }
+  }
+
+  setMuted(on) {
+    try { localStorage.setItem('worms-muted', on ? '1' : '0'); } catch { /* ignore */ }
+  }
+
   play(name, { volume = 1 } = {}) {
+    if (this.muted) return;
     if (!this.ctx || this.ctx.state !== 'running') return;
     const entry = FILES[name];
     if (!entry) return;

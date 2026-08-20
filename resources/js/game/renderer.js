@@ -34,6 +34,7 @@ import {
   drawPetrolBottle, drawStrikeMissile, drawArrowProjectile, drawMine, drawSheep,
   drawFlame, drawCarpet, drawFireball, drawDonkey, drawMeteor,
   drawGirder, drawGirderGhost, girderIndexForFuse, drawStrikeTarget,
+  drawDrum,
 } from './sprites.js';
 import { sounds } from './sound.js';
 
@@ -332,7 +333,9 @@ export class Renderer {
   }
 
   _fxWormDied(ev) {
-    this._graves.set(ev.wormId, { x: ev.x, y: ev.y, age: 0 });
+    // The stone spawns where the worm died (often over a fresh crater) and
+    // falls to its resting place — _settleGraves owns the drop.
+    this._graves.set(ev.wormId, { x: ev.x, y: ev.y, vy: 0, rest: false, age: 0 });
     // Soul drifts up with a halo.
     this._spawn('soul', ev.x, ev.y - 10, 0, -22, 2.4, 6, 0);
     this._spawnBurst('dust', ev.x, ev.y, 6, 30, -20, 0.4);
@@ -387,9 +390,13 @@ export class Renderer {
     }
     const c = ev.contents;
     let text = '+ammo';
-    if (typeof c === 'string') text = `+${c}`;
+    let color = '#ffd23c';
+    if (c && c.health) {
+      text = `+${c.health}`;
+      color = '#5ee06a'; // healing green
+    } else if (typeof c === 'string') text = `+${c}`;
     else if (c && c.weapon) text = `+${c.count || c.n || 1} ${c.weapon}`;
-    this._numbers.push({ x: worm.x, y: worm.y - 22, text, color: '#ffd23c', age: 0, dur: 1.2 });
+    this._numbers.push({ x: worm.x, y: worm.y - 22, text, color, age: 0, dur: 1.2 });
   }
 
   _fxFallDamage(ev) {
@@ -736,16 +743,29 @@ export class Renderer {
       break;
     }
     if (followP) {
+      // A projectile in flight always reclaims a manually-panned camera.
+      this.camera.resumeFollow?.();
       this.camera.follow(followP.x, followP.y);
     } else if (state.activeWormId != null) {
       const aw = this._findWorm(state.activeWormId);
-      if (aw && aw.alive !== false) this.camera.follow(aw.x, aw.y - 20);
+      if (aw && aw.alive !== false) {
+        // The active worm moving (walk, jump, fall, new turn) reclaims a
+        // manually-panned camera; while everything is still, the pan holds.
+        const lf = this._lastFollow;
+        if (!lf || lf.id !== aw.id ||
+            Math.abs(aw.x - lf.x) > 0.01 || Math.abs(aw.y - lf.y) > 0.01) {
+          if (lf) this.camera.resumeFollow?.();
+          this._lastFollow = { id: aw.id, x: aw.x, y: aw.y };
+        }
+        this.camera.follow(aw.x, aw.y - 20);
+      }
     }
     this.camera.update(dt);
 
     this._updateParticles(dt);
     this._ageFx(dt);
     this._adoptPreexistingGraves(state, waterLevel);
+    this._settleGraves(dt, terrain, waterLevel, worldH);
     this._trackJump(state, dt);
 
     // Sustained set-piece shake (earthquake / donkey / armageddon).
@@ -797,15 +817,22 @@ export class Renderer {
     // Crates
     const crates = state.crates || [];
     for (const c of crates) {
-      drawCrate(ctx, c.x, c.y, { parachute: !!(c.falling || c.parachute), t: this.time });
+      drawCrate(ctx, c.x, c.y, {
+        parachute: !!(c.falling || c.parachute), t: this.time,
+        health: c.kind === 'health',
+      });
     }
 
-    // Gravestones (dead worms)
+    // Oil drums (pre-placed hazards, rules >= 2)
+    const drums = state.drums || [];
+    for (const d of drums) {
+      drawDrum(ctx, d.x, d.y, this.time);
+    }
+
+    // Gravestones (dead worms) — settled by _settleGraves, never hovering
     for (const [, gv] of this._graves) {
       if (gv.y >= waterLevel) continue; // drowned worms leave no stone
-      const k = Math.min(1, gv.age / 0.45);
-      const drop = (1 - k) * (1 - k) * -46;
-      drawGravestone(ctx, gv.x, gv.y + drop, this.time);
+      drawGravestone(ctx, gv.x, gv.y, this.time);
     }
 
     // Worms
@@ -1263,6 +1290,43 @@ export class Renderer {
   }
 
   /**
+   * Gravestones obey gravity (cosmetically): a stone spawned over the crater
+   * that killed its worm falls until its base finds terrain, and a resting
+   * stone whose ground is later blown away starts falling again.
+   */
+  _settleGraves(dt, terrain, waterLevel, worldH) {
+    if (!terrain) return;
+    // The sprite's ground line sits at gv.y + 5 (same as worm feet).
+    const footSolid = (x, y) => y + 6 >= worldH || terrain.solid(x, y + 6);
+    for (const [, gv] of this._graves) {
+      if (gv.y >= waterLevel) continue; // sunk — stays sunk
+      if (gv.rest) {
+        if (!footSolid(gv.x, gv.y)) { gv.rest = false; gv.vy = 0; }
+        continue;
+      }
+      if (gv.snap) {
+        while (gv.y < waterLevel && !footSolid(gv.x, gv.y)) gv.y += 1;
+        gv.rest = gv.y < waterLevel;
+        gv.snap = false;
+        continue;
+      }
+      gv.vy += 350 * dt; // world gravity
+      let dy = gv.vy * dt;
+      while (dy > 0) {
+        const step = Math.min(1, dy);
+        dy -= step;
+        if (footSolid(gv.x, gv.y + step)) {
+          gv.rest = true;
+          gv.vy = 0;
+          break;
+        }
+        gv.y += step;
+        if (gv.y >= waterLevel) break; // splashes out of sight
+      }
+    }
+  }
+
+  /**
    * Worms already dead in the state without a wormDied event (e.g. booting
    * from a mid-game snapshot) still get a gravestone.
    */
@@ -1271,7 +1335,8 @@ export class Renderer {
     if (!worms) return;
     for (const wm of worms) {
       if (wm.alive === false && !this._graves.has(wm.id)) {
-        this._graves.set(wm.id, { x: wm.x, y: wm.y, age: 1 });
+        // snap: settle instantly — no drop animation for pre-existing deaths.
+        this._graves.set(wm.id, { x: wm.x, y: wm.y, vy: 0, rest: false, snap: true, age: 1 });
       }
     }
   }

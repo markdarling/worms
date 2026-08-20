@@ -24,8 +24,9 @@ export class ReplayPlayer {
         }
     }
 
-    // Cinematic playback of a list of turn records.
-    async play(turns, onTurnStart, onFrame) {
+    // Cinematic playback of a list of turn records. onTurnEnd fires after each
+    // turn settles (not for turns fast-forwarded by skip).
+    async play(turns, onTurnStart, onFrame, onTurnEnd) {
         this._skip = false;
         for (const t of turns) {
             this.sim.beginTurn(t.number);
@@ -72,6 +73,7 @@ export class ReplayPlayer {
                 this.fastForward(rest);
                 break;
             }
+            onTurnEnd?.(t);
         }
     }
 

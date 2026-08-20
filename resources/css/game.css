@@ -112,10 +112,32 @@ body:has(#game-canvas) {
   white-space: nowrap;
 }
 
+.hud-topright {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .hud-turnbox {
   padding: 5px 14px;
   text-align: right;
   white-space: nowrap;
+}
+
+.hud-mute {
+  background: var(--w-panel);
+  border: 2px solid var(--w-panel-edge);
+  border-radius: 10px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+  font-size: 14px;
+  line-height: 1;
+  padding: 6px 8px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.hud-mute:hover {
+  transform: scale(1.08);
 }
 
 .hud-turn {
@@ -237,6 +259,7 @@ body:has(#game-canvas) {
    body.my-turn around the live turn loop. */
 body:not(.my-turn) .hud-weapons,
 body:not(.my-turn) .hud-hint,
+body:not(.my-turn) .hud-keys,
 body.replay-mode .hud-hint {
   display: none;
 }
@@ -432,11 +455,28 @@ body.replay-mode .hud-keys {
 /* Always-open weapon dock: a TWO-ROW grid across the bottom, grouped per
    WA's classic F1–F12 panel layout. Each group is a 2-row column cluster;
    groups are divided by subtle separators. */
-.hud-weapons {
+/* Wrapper anchoring the dock + its top bar (taunt left, controls right) to
+   the bottom centre. Bottom-anchored, so anything growing (the controls
+   panel opening) expands UPWARDS. */
+.hud-dockwrap {
   position: absolute;
   left: 50%;
   bottom: 10px;
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: calc(100vw - 24px);
+}
+
+.hud-dockbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.hud-weapons {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -648,15 +688,91 @@ body.replay-mode .hud-weapons { display: none; }
 }
 
 /* ==========================================================================
+   Taunt box (your live turn only)
+   ========================================================================== */
+
+.hud-taunt {
+  order: 0; /* left side of the dock bar, opposite the controls */
+  width: 250px;
+  padding: 4px;
+  display: none;
+}
+
+body.my-turn .hud-taunt { display: block; }
+#hud-root .hud-taunt { pointer-events: auto; }
+
+.hud-taunt__input {
+  width: 100%;
+  border: none;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-family: var(--w-font);
+  font-size: 11.5px;
+  color: var(--w-text);
+}
+
+.hud-taunt__input::placeholder { color: rgba(255, 255, 255, 0.45); }
+.hud-taunt__input:focus { outline: 2px solid rgba(232, 180, 69, 0.6); }
+
+/* ==========================================================================
+   Game-over stats table
+   ========================================================================== */
+
+.hud-stats {
+  margin: 14px auto 4px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.hud-stats th {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.65;
+  padding: 3px 10px;
+}
+
+.hud-stats td {
+  padding: 4px 10px;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.hud-stats__team {
+  text-align: left !important;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.hud-stats__chip {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 7px;
+  vertical-align: baseline;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+.hud-overlay__btns {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+/* ==========================================================================
    Keybinding hint strip (collapsible, bottom-right)
    ========================================================================== */
 
 .hud-keys {
-  position: absolute;
-  right: 12px;
-  bottom: 10px; /* aligned with the weapon dock baseline */
+  order: 1;            /* right side of the dock bar */
+  margin-left: auto;   /* hugs the dock's top-right corner */
   padding: 4px;
   max-width: 260px;
+  display: flex;
+  flex-direction: column-reverse; /* body above the toggle -> opens upwards */
 }
 
 .hud-keys__toggle {
@@ -1007,6 +1123,13 @@ body.sudden-death #hud-root::before {
   margin: 14px 0 4px;
 }
 
+.lobby-form-help {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: rgba(43, 32, 40, 0.6);
+  margin: 5px 2px 0;
+}
+
 .lobby-form input[type="text"],
 .lobby-form input[type="number"],
 .lobby-form input:not([type]),
@@ -1210,6 +1333,61 @@ body.sudden-death #hud-root::before {
   align-items: center;
   gap: 10px;
 }
+
+/* ---- "Your games" list (localStorage seats) ---- */
+
+.lobby-mygames {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lobby-mygame {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 2px;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.12);
+}
+
+.lobby-mygame:last-child { border-bottom: none; }
+
+.lobby-mygame-name {
+  flex: 1;
+  font-weight: bold;
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby-mygame-name:hover { text-decoration: underline; }
+
+.lobby-mygame-status {
+  font-size: 12px;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.lobby-mygame-status.is-yourmove {
+  color: #c22a1e;
+  font-weight: bold;
+  opacity: 1;
+}
+
+.lobby-mygame-status.is-finished { opacity: 0.55; }
+
+.lobby-mygame-forget {
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.35;
+  font-size: 12px;
+  padding: 2px 4px;
+}
+
+.lobby-mygame-forget:hover { opacity: 1; }
 
 .lobby-team-chip {
   flex: 0 0 auto;
