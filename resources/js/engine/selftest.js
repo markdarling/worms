@@ -6,7 +6,7 @@ import { Sim } from './sim.js';
 import { C } from './constants.js';
 import { encodeCommands, decodeCommands, normalizeInput } from './commands.js';
 import { Flame } from './fire.js';
-import { mineDudRoll } from './walkers.js';
+import { mineDudRoll, Drum } from './walkers.js';
 import * as P from './physics.js';
 
 let passed = 0;
@@ -85,11 +85,15 @@ const flatConfig = {
     { name: 'B', color: '#36e', worms: ['B1', 'B2'] },
   ],
 };
-function flatSim() {
-  const sim = Sim.newGame(flatConfig);
+function flatSim(extra = {}) {
+  const sim = Sim.newGame({ ...flatConfig, ...extra });
   const flat = new Terrain(2400, 900);
   for (let y = 500; y < 840; y++) for (let x = 0; x < 2400; x++) flat.data[y * 2400 + x] = 1;
   sim.terrain = flat;
+  // Hazards (rules >= 2) were placed on the generated terrain we just threw
+  // away — clear them so behaviour tests stay controlled.
+  sim.mines = [];
+  sim.drums = [];
   const xs = [300, 700, 1100, 1500]; // ids 0,1 = team A; 2,3 = team B
   sim.worms.forEach((w, i) => {
     w.x = xs[i]; w.y = 494; w.airborne = false; w.facing = 1; w.aimAngle = 0;
@@ -397,13 +401,16 @@ section('i. gameplay behaviour spot checks');
       `wind shifts identical shots (wind ${a.wind} -> x ${Math.round(a.x)}, wind ${b.wind} -> x ${Math.round(b.x)})`);
   }
 
-  // Sudden death: water rises from the configured round, worms can drown
+  // Sudden death: accelerating water rise + hp decay (floored at 1) from the
+  // configured round
   {
-    const sim = Sim.newGame({ ...cfg, suddenDeathRound: 2 });
+    const sim = flatSim();
+    sim.config.suddenDeathRound = 2;
     const w0 = sim.waterLevel;
+    sim.worms[3].hp = 4; // decay must floor at 1hp, never kill
     let sawSuddenDeath = false;
     let sawRise = false;
-    for (let n = 1; n <= 4 && sim.phase !== 'game-over'; n++) {
+    for (let n = 1; n <= 6 && sim.phase !== 'game-over'; n++) {
       sim.beginTurn(n);
       for (const e of sim.drainEvents()) {
         if (e.type === 'suddenDeath') sawSuddenDeath = true;
@@ -412,7 +419,86 @@ section('i. gameplay behaviour spot checks');
       collect(sim, [{ weapon: 'skip' }, { fire: true }]);
     }
     assert(sawSuddenDeath && sawRise, 'suddenDeath + waterRise events emitted');
-    assert(sim.waterLevel === w0 + 24, `water rose 12px per turn from round 2 (${w0} -> ${sim.waterLevel})`);
+    // Turns 3+4 are round 2 (+WATER_RISE each), turns 5+6 round 3 (+ACCEL more).
+    const expect = w0 + 2 * C.WATER_RISE + 2 * (C.WATER_RISE + C.WATER_RISE_ACCEL);
+    assert(sim.waterLevel === expect, `water rise accelerates per round (${w0} -> ${sim.waterLevel}, expected ${expect})`);
+    const decayed = sim.worms[0];
+    assert(decayed.hp === C.WORM_HP - 4 * C.SUDDEN_DEATH_DECAY,
+      `worms wither ${C.SUDDEN_DEATH_DECAY}hp per sudden-death turn (hp ${decayed.hp})`);
+    assert(sim.worms[3].alive && sim.worms[3].hp === 1,
+      `decay floors at 1hp and never kills (hp ${sim.worms[3].hp})`);
+  }
+
+  // Rules v2: weapon memory, health crates, pre-placed hazards, oil drums.
+  // All gated on config.rules >= 2 so v1 games replay unchanged.
+  {
+    // Weapon memory: the team's selection survives to its next turn.
+    const sim = flatSim({ rules: 2 });
+    sim.beginTurn(1); // team A
+    collect(sim, [{ weapon: 'grenade' }, { weapon: 'skip', fire: true }]);
+    sim.beginTurn(2); // team B
+    assert(sim.selectedWeapon === 'bazooka', 'weapon memory is per-team (B starts on bazooka)');
+    collect(sim, [{ weapon: 'skip', fire: true }]);
+    sim.beginTurn(3); // team A again
+    assert(sim.selectedWeapon === 'grenade', `team A remembers its grenade (got ${sim.selectedWeapon})`);
+
+    const v1 = flatSim();
+    v1.beginTurn(1);
+    collect(v1, [{ weapon: 'grenade' }, { weapon: 'skip', fire: true }]);
+    v1.beginTurn(2);
+    collect(v1, [{ weapon: 'skip', fire: true }]);
+    v1.beginTurn(3);
+    assert(v1.selectedWeapon === 'bazooka', 'rules v1 games keep the bazooka reset');
+  }
+  {
+    // Health crate: collected on contact, heals past nothing (no cap).
+    const sim = flatSim({ rules: 2 });
+    sim.beginTurn(1);
+    sim.drainEvents();
+    const aw = sim.worms.find((w) => w.id === sim.activeWormId);
+    aw.hp = 40;
+    sim.crates.push({ x: aw.x, y: aw.y, vx: 0, vy: 0, falling: false, kind: 'health', weapon: null, amount: C.CRATE_HEALTH });
+    const evs = collect(sim, [{}, { weapon: 'skip', fire: true }]);
+    const got = evs.find((e) => e.type === 'crateCollected');
+    assert(aw.hp === 40 + C.CRATE_HEALTH && got && got.contents.health === C.CRATE_HEALTH,
+      `health crate heals +${C.CRATE_HEALTH} (hp ${aw.hp})`);
+  }
+  {
+    // Pre-placed hazards: seeded, deterministic, clear of worm spawns.
+    const mk = () => Sim.newGame({ ...baseConfig, rules: 2 });
+    const s1 = mk();
+    assert(s1.mines.length >= 2 && s1.drums.length >= 1,
+      `hazards placed (${s1.mines.length} mines, ${s1.drums.length} drums)`);
+    assert(s1.mines.every((m) => m.state === 'idle'), 'map mines are armed from turn one');
+    const clear = s1.mines.concat(s1.drums).every((h) =>
+      s1.worms.every((w) => Math.hypot(w.x - h.x, w.y - h.y) > 40));
+    assert(clear, 'hazards spawn clear of every worm');
+    const s2 = mk();
+    assert(
+      JSON.stringify(s1.mines.map((m) => m.serialize())) === JSON.stringify(s2.mines.map((m) => m.serialize())) &&
+      JSON.stringify(s1.drums.map((d) => d.serialize())) === JSON.stringify(s2.drums.map((d) => d.serialize())),
+      'hazard placement is deterministic per seed');
+    const v1 = Sim.newGame(baseConfig);
+    assert(v1.mines.length === 0 && v1.drums.length === 0, 'rules v1 maps stay hazard-free');
+  }
+  {
+    // Oil drum: a nearby blast cooks it off — real explosion + burning oil.
+    const sim = flatSim({ rules: 2 });
+    sim.beginTurn(1);
+    sim.drainEvents();
+    sim.drums.push(new Drum(9000, 2000, 490)); // far from every worm
+    P.applyExplosion(sim, 2010, 486, { dmg: 30, radius: 24, knock: 200 });
+    const evs = collect(sim, [{}, {}, { weapon: 'skip', fire: true }]);
+    const drumGone = sim.drums.length === 0;
+    const boomed = evs.filter((e) => e.type === 'explosion').length >= 1;
+    assert(drumGone && boomed && sim.flames.length > 0,
+      `drum chain-detonates and spills fire (${sim.flames.length} flames)`);
+    // Snapshot round-trip carries drums + weapon memory.
+    sim.drums.push(new Drum(9001, 2100, 490));
+    const snap = JSON.parse(JSON.stringify(sim.snapshot()));
+    const back = Sim.fromSnapshot({ ...flatConfig, rules: 2 }, snap);
+    assert(JSON.stringify(back.snapshot()) === JSON.stringify(sim.snapshot()),
+      'rules-2 snapshot (drums, teamWeapons, crate kinds) round-trips');
   }
 
   // Stamina: exhausted worm stops moving but the turn continues; jump refused

@@ -36,7 +36,7 @@ import * as P from './physics.js';
 import { Projectile } from './projectiles.js';
 import * as W from './weapons.js';
 import { Flame, stepFlames, decayFlames } from './fire.js';
-import { Mine, deserializeWalker } from './walkers.js';
+import { Mine, Drum, deserializeWalker, mineDudRoll } from './walkers.js';
 
 // The mapgen track owns engine/placement.js (expansion contract). Wire it in
 // when it exists; fall back to the classic spawn scatter until it lands.
@@ -50,6 +50,11 @@ try {
 
 function mergeConfig(config) {
   return {
+    // Rules version: gameplay rules added after launch are gated on this so
+    // that older games (whose command streams were recorded under the old
+    // rules) replay identically forever. rules >= 2 adds: per-team weapon
+    // memory, health crates, and pre-placed hazards (mines + oil drums).
+    rules: config.rules || 1,
     seed: config.seed >>> 0,
     width: config.width || C.WORLD_W,
     height: config.height || C.WORLD_H,
@@ -60,6 +65,51 @@ function mergeConfig(config) {
     retreatStamina: config.retreatStamina || C.RETREAT_STAMINA,
     suddenDeathRound: config.suddenDeathRound !== undefined ? config.suddenDeathRound : C.SUDDEN_DEATH_ROUND,
   };
+}
+
+// Pre-placed hazards (rules >= 2): armed mines + oil drums scattered on the
+// terrain surface, clear of worm spawns and each other. Own rng stream —
+// never disturbs the wind/crate call order.
+function placeHazards(sim, config) {
+  const rng = makeRng(hashSeed(config.seed, 0xd2a4));
+  const spots = P.findSpawnSpots(sim.terrain, sim.waterLevel, 10);
+  const clearance = C.HAZARD_WORM_CLEARANCE * C.HAZARD_WORM_CLEARANCE;
+  const clear = spots.filter((s) => sim.worms.every((w) => {
+    const dx = w.x - s.x;
+    const dy = w.y - s.y;
+    return dx * dx + dy * dy > clearance;
+  }));
+  const used = [];
+  const pick = () => {
+    for (let tries = 0; tries < 40; tries++) {
+      const s = clear[Math.floor(rng() * clear.length)];
+      if (!s) return null;
+      if (used.every((u) => Math.abs(u.x - s.x) > 60)) {
+        used.push(s);
+        return s;
+      }
+    }
+    return null;
+  };
+  const nMines = Math.max(2, Math.round(config.width / C.HAZARD_MINE_SPACING));
+  const nDrums = Math.max(1, Math.round(config.width / C.HAZARD_DRUM_SPACING));
+  for (let i = 0; i < nMines; i++) {
+    const s = pick();
+    if (!s) break;
+    // spot y is a worm-centre position (surface - 6); a mine rests 3px up.
+    const m = new Mine(sim.entitySeq++, s.x, s.y + 3, {
+      owner: -1,
+      dud: mineDudRoll(config.seed, sim.mineCounter++),
+    });
+    m.state = 'idle'; // armed from turn one — no arming grace for map mines
+    m.resting = true;
+    sim.mines.push(m);
+  }
+  for (let i = 0; i < nDrums; i++) {
+    const s = pick();
+    if (!s) break;
+    sim.drums.push(new Drum(sim.entitySeq++, s.x, s.y - 3));
+  }
 }
 
 function defaultAmmo() {
@@ -79,6 +129,7 @@ export class Sim {
     this.crates = []; // {x, y, vx, vy, falling, weapon, amount}
     this.flames = []; // fire.js Flame entities — persist across turns
     this.mines = [];  // walkers.js Mine entities — persist across turns
+    this.drums = [];  // walkers.js Drum hazards (rules >= 2)
     this.walkers = []; // walkers.js Sheep/Donkey entities
     this.events = [];
     this.wind = 0;
@@ -92,6 +143,7 @@ export class Sim {
     this.stamina = 0;
     this.retreatStamina = 0;
     this.selectedWeapon = 'bazooka';
+    this.teamWeapons = config.teams.map(() => 'bazooka'); // rules>=2 weapon memory
     this.grenadeFuse = 3; // 1-5 grenade timer; doubles as girder angle 1-8
     this.power = 0;
     this.charging = false;
@@ -182,6 +234,7 @@ export class Sim {
       }
     }
     sim.fireLedger = sim.worms.map(() => 0);
+    if (config.rules >= 2) placeHazards(sim, config);
     return sim;
   }
 
@@ -236,10 +289,15 @@ export class Sim {
     sim.crates = snap.crates.map((a) => ({
       x: a[0], y: a[1], vy: a[2], falling: a[3] === 1, weapon: a[4], amount: a[5],
       vx: a[6] || 0,
+      kind: a[7] === 1 ? 'health' : 'weapon',
     }));
     // v2 arsenal state (v1 snapshots have none of it):
     sim.flames = (snap.flames || []).map((a) => Flame.deserialize(a));
     sim.mines = (snap.mines || []).map((a) => Mine.deserialize(a));
+    sim.drums = (snap.drums || []).map((a) => Drum.deserialize(a));
+    sim.teamWeapons = snap.teamWeapons
+      ? snap.teamWeapons.slice()
+      : config.teams.map(() => 'bazooka');
     sim.walkers = (snap.walkers || []).map((a) => deserializeWalker(a));
     sim.burst = snap.burst ? { weapon: snap.burst[0], left: snap.burst[1], tick: snap.burst[2] } : null;
     sim.flamer = snap.flamer ? { left: snap.flamer[0], tick: snap.flamer[1] } : null;
@@ -287,14 +345,33 @@ export class Sim {
         this.suddenDeath = true;
         this.events.push({ type: 'suddenDeath' });
       }
-      this.waterLevel += C.WATER_RISE;
+      // Accelerating water: derived from `round` so it needs no extra
+      // snapshot state and stays deterministic across resumes.
+      const roundsIn = this.round - this.config.suddenDeathRound;
+      this.waterLevel += C.WATER_RISE + C.WATER_RISE_ACCEL * roundsIn;
       this.events.push({ type: 'waterRise', level: this.waterLevel });
+      // Every worm withers each turn, floored at 1 hp — decay pressures
+      // everyone but never lands the killing blow itself.
+      for (let i = 0; i < this.worms.length; i++) {
+        const worm = this.worms[i];
+        if (!worm.alive || worm.hp <= 1) continue;
+        const dmg = Math.min(C.SUDDEN_DEATH_DECAY, worm.hp - 1);
+        worm.hp -= dmg;
+        this.events.push({ type: 'damage', wormId: worm.id, amount: dmg, x: worm.x, y: worm.y });
+      }
     }
 
     if (this._rng() < C.CRATE_CHANCE) {
+      // rules >= 2 inserts a crate-type roll; older games keep the original
+      // rng call order (chance, x, pick) so their replays never shift.
+      const health = this.config.rules >= 2 && this._rng() < C.HEALTH_CRATE_SHARE;
       const x = Math.round(60 + this._rng() * (this.config.width - 120));
-      const pick = C.CRATE_TABLE[Math.floor(this._rng() * C.CRATE_TABLE.length)];
-      this.crates.push({ x, y: -12, vx: 0, vy: 0, falling: true, weapon: pick[0], amount: pick[1] });
+      if (health) {
+        this.crates.push({ x, y: -12, vx: 0, vy: 0, falling: true, kind: 'health', weapon: null, amount: C.CRATE_HEALTH });
+      } else {
+        const pick = C.CRATE_TABLE[Math.floor(this._rng() * C.CRATE_TABLE.length)];
+        this.crates.push({ x, y: -12, vx: 0, vy: 0, falling: true, kind: 'weapon', weapon: pick[0], amount: pick[1] });
+      }
     }
 
     // Water rise may drown worms before the turn starts.
@@ -307,7 +384,12 @@ export class Sim {
     this.activeWormId = worm.id;
     this.stamina = this.config.stamina;
     this.retreatStamina = this.config.retreatStamina;
-    this.selectedWeapon = 'bazooka';
+    // rules >= 2: the team's last-used weapon is remembered between turns
+    // (classic WA). Falls back to bazooka if its ammo ran out meanwhile.
+    const remembered = this.teamWeapons[worm.teamIndex];
+    this.selectedWeapon = (this.config.rules >= 2 && remembered &&
+      C.WEAPONS[remembered] && W.hasAmmo(this, worm.teamIndex, remembered))
+      ? remembered : 'bazooka';
     this.power = 0;
     this.charging = false;
     this.pendingShots = 0;
@@ -412,6 +494,10 @@ export class Sim {
         this.selectedWeapon = input.weapon;
         this.charging = false;
         this.power = 0;
+      }
+      // Weapon memory (rules >= 2): skip is a turn action, never a preference.
+      if (this.config.rules >= 2 && input.weapon !== 'skip') {
+        this.teamWeapons[worm.teamIndex] = input.weapon;
       }
     }
     if (input.fuse) this.grenadeFuse = input.fuse;
@@ -562,12 +648,18 @@ export class Sim {
     }
     this.projectiles = this.projectiles.filter((p) => !p.dead);
 
-    // Mines, then walkers, then flames (all fixed spawn order).
+    // Mines, then drums, then walkers, then flames (all fixed spawn order).
     const nM = this.mines.length;
     for (let i = 0; i < nM; i++) {
       if (!this.mines[i].dead) this.mines[i].step(this);
     }
     this.mines = this.mines.filter((m) => !m.dead);
+
+    const nD = this.drums.length;
+    for (let i = 0; i < nD; i++) {
+      if (!this.drums[i].dead) this.drums[i].step(this);
+    }
+    this.drums = this.drums.filter((d) => !d.dead);
 
     const nW = this.walkers.length;
     for (let i = 0; i < nW; i++) {
@@ -697,12 +789,20 @@ export class Sim {
         const w = this.worms[k];
         if (!w.alive) continue;
         if (Math.abs(w.x - c.x) < 12 && Math.abs(w.y - c.y) < 14) {
-          this.ammo[w.teamIndex][c.weapon] += c.amount;
           c.dead = true;
-          this.events.push({
-            type: 'crateCollected', wormId: w.id,
-            contents: { weapon: c.weapon, amount: c.amount },
-          });
+          if (c.kind === 'health') {
+            w.hp += c.amount; // may exceed starting hp (classic)
+            this.events.push({
+              type: 'crateCollected', wormId: w.id,
+              contents: { health: c.amount },
+            });
+          } else {
+            this.ammo[w.teamIndex][c.weapon] += c.amount;
+            this.events.push({
+              type: 'crateCollected', wormId: w.id,
+              contents: { weapon: c.weapon, amount: c.amount },
+            });
+          }
           break;
         }
       }
@@ -758,6 +858,10 @@ export class Sim {
       const m = this.mines[i];
       // A moving or fizzing mine blocks turn end; a resting armed mine doesn't.
       if (!m.dead && (!m.resting || m.state === 'triggered')) return false;
+    }
+    for (let i = 0; i < this.drums.length; i++) {
+      const d = this.drums[i];
+      if (!d.dead && (d.falling || d.hit)) return false; // mid-fall / cooking off
     }
     for (let i = 0; i < this.flames.length; i++) {
       // CRITICAL: resting flames count as settled — standing fires never
@@ -829,6 +933,7 @@ export class Sim {
       mines: this.mines.map((m) => ({
         x: m.x, y: m.y, state: m.state, timer: m.timer,
       })),
+      drums: this.drums.map((d) => ({ x: d.x, y: d.y, falling: d.falling })),
       walkers: this.walkers.map((w) => ({
         kind: w.kind, x: w.x, y: w.y,
         dir: w.kind === 'sheep' ? w.dir : 0,
@@ -843,7 +948,10 @@ export class Sim {
       pendingTarget: this.pendingTarget ? { x: this.pendingTarget.x, y: this.pendingTarget.y } : null,
       crates: this.crates.map((c) => ({
         x: c.x, y: c.y, falling: c.falling,
-        contents: { weapon: c.weapon, amount: c.amount },
+        kind: c.kind || 'weapon',
+        contents: c.kind === 'health'
+          ? { health: c.amount }
+          : { weapon: c.weapon, amount: c.amount },
       })),
       wind: this.wind,
       waterLevel: this.waterLevel,
@@ -892,9 +1000,14 @@ export class Sim {
       ammo: this.ammo.map((a) => AMMO_IDS.map((id) => a[id])),
       worms: this.worms.map((w) => w.serialize()),
       projectiles: this.projectiles.map((p) => p.serialize()),
-      crates: this.crates.map((c) => [c.x, c.y, c.vy, c.falling ? 1 : 0, c.weapon, c.amount, c.vx || 0]),
+      crates: this.crates.map((c) => [
+        c.x, c.y, c.vy, c.falling ? 1 : 0, c.weapon, c.amount, c.vx || 0,
+        c.kind === 'health' ? 1 : 0,
+      ]),
       flames: this.flames.map((f) => f.serialize()),
       mines: this.mines.map((m) => m.serialize()),
+      drums: this.drums.map((d) => d.serialize()),
+      teamWeapons: this.teamWeapons.slice(),
       walkers: this.walkers.map((w) => w.serialize()),
       burst: this.burst ? [this.burst.weapon, this.burst.left, this.burst.tick] : 0,
       flamer: this.flamer ? [this.flamer.left, this.flamer.tick] : 0,

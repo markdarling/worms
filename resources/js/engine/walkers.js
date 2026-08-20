@@ -5,6 +5,7 @@
 
 import { C } from './constants.js';
 import { applyExplosion, walk, wormAirStep, grounded, bodyCollides, surfaceNormal } from './physics.js';
+import { spawnFlames } from './fire.js';
 
 // ---------------------------------------------------------------------- Mine
 // States: arming (placer can retreat over it) -> idle -> triggered (3s fuse,
@@ -122,6 +123,89 @@ export class Mine {
   }
 }
 
+// ----------------------------------------------------------------- Oil drum
+// Pre-placed map hazard (rules >= 2). Sits on the terrain; falls straight
+// down when its footing is destroyed; detonates when caught in a blast
+// (physics.applyExplosion sets `hit`) or licked by a resting flame. The
+// detonation is a real explosion PLUS burning oil (spawnFlames — consumes
+// sim rng, which is fine: drums only exist in rules-2 games).
+export class Drum {
+  constructor(id, x, y) {
+    this.id = id;
+    this.x = x;
+    this.y = y;
+    this.vy = 0;
+    this.falling = false;
+    this.hit = false; // set by applyExplosion; detonates on our next step
+    this.dead = false;
+  }
+
+  step(sim) {
+    if (this.hit) {
+      this.explode(sim);
+      return;
+    }
+    // Fire cooks the drum: any live flame touching the barrel.
+    for (let i = 0; i < sim.flames.length; i++) {
+      const f = sim.flames[i];
+      if (f.dead) continue;
+      const dx = f.x - this.x;
+      const dy = f.y - this.y;
+      if (dx * dx + dy * dy < 12 * 12) {
+        this.explode(sim);
+        return;
+      }
+    }
+    // Footing check + straight fall (heavy barrel — no bounce, no shove).
+    const hw = C.DRUM.halfW;
+    const hh = C.DRUM.halfH;
+    const foot = (x) => sim.terrain.solid(x, this.y + hh + 1);
+    if (!this.falling && !foot(this.x) && !foot(this.x - hw + 2) && !foot(this.x + hw - 2)) {
+      this.falling = true;
+      this.vy = 0;
+    }
+    if (this.falling) {
+      this.vy += C.GRAVITY * C.DT;
+      let dy = this.vy * C.DT;
+      while (dy > 0) {
+        const step = Math.min(1, dy);
+        dy -= step;
+        const ny = this.y + step;
+        if (ny + hh > sim.waterLevel) {
+          sim.events.push({ type: 'splash', x: this.x, y: sim.waterLevel });
+          this.dead = true;
+          return;
+        }
+        if (foot(this.x) || sim.terrain.solid(this.x, ny + hh)) {
+          this.falling = false;
+          this.vy = 0;
+          break;
+        }
+        this.y = ny;
+      }
+    }
+  }
+
+  explode(sim) {
+    if (this.dead) return;
+    this.dead = true;
+    applyExplosion(sim, this.x, this.y, C.DRUM, -1);
+    spawnFlames(sim, this.x, this.y - 2, C.DRUM.flames, { spread: 100, up: 120 });
+  }
+
+  serialize() {
+    return [this.id, this.x, this.y, this.vy, this.falling ? 1 : 0, this.hit ? 1 : 0];
+  }
+
+  static deserialize(a) {
+    const d = new Drum(a[0], a[1], a[2]);
+    d.vy = a[3];
+    d.falling = a[4] === 1;
+    d.hit = a[5] === 1;
+    return d;
+  }
+}
+
 // WA's 6-slot dud pool: outcomes are pre-rolled in blocks of six, so duds
 // cluster realistically. Pure function of (gameSeed, mineIndex) — no state.
 import { makeRng, hashSeed } from './rng.js';
@@ -216,10 +300,10 @@ export class Sheep {
       }
     }
 
-    // Collects crates for its owner en route!
+    // Collects crates for its owner en route! (Sheep can't carry medicine.)
     for (let i = 0; i < sim.crates.length; i++) {
       const c = sim.crates[i];
-      if (c.falling || c.dead) continue;
+      if (c.falling || c.dead || c.kind === 'health') continue;
       if (Math.abs(this.x - c.x) < 12 && Math.abs(this.y - c.y) < 14) {
         sim.ammo[this.teamIndex][c.weapon] += c.amount;
         c.dead = true;

@@ -51,12 +51,20 @@ export const C = {
 
   WIND_ACCEL: 40, // px/s^2 at |wind| = 1; wind-flagged projectiles only
 
-  // Sudden death
+  // Sudden death — turn-based endgame pressure, three prongs:
+  //  1. water rises every turn, ACCELERATING each round so the game always ends
+  //  2. every worm withers SUDDEN_DEATH_DECAY hp per turn (never below 1 —
+  //     the water or a weapon must land the killing blow, WA nuclear-test style)
+  //  3. the trigger itself is a one-off dramatic event (banner + tint + shake)
   SUDDEN_DEATH_ROUND: 10,
-  WATER_RISE: 12, // px per turn once active
+  WATER_RISE: 12,        // px per turn at the moment sudden death starts
+  WATER_RISE_ACCEL: 4,   // +px per turn for every round since it started
+  SUDDEN_DEATH_DECAY: 5, // hp lost per worm per turn, floored at 1 hp
 
   // Crates
   CRATE_CHANCE: 0.25,
+  CRATE_HEALTH: 25,        // hp restored by a health crate (rules >= 2)
+  HEALTH_CRATE_SHARE: 0.35, // fraction of crate drops that are health (rules >= 2)
   CRATE_HALF_W: 7,
   CRATE_HALF_H: 6,
   CRATE_FALL_GRAVITY_SCALE: 0.6, // crates drift down a touch slower (parachute-ish)
@@ -108,6 +116,19 @@ export const C = {
     e: 0.6, f: 0.96,    // MAX-bounce body — shoved further than worms by blasts
     dudChance: 0.2,     // rolled through WA's 6-slot pool (duds cluster)
   },
+
+  // Oil drums (pre-placed map hazard, rules >= 2): explode when caught in any
+  // blast or licked by fire, releasing a fireball + burning oil.
+  DRUM: {
+    dmg: 40, radius: 34, knock: 280,
+    triggerPad: 8,   // blast rim slack — a near miss still cooks the drum
+    flames: 10,      // burning oil released on detonation
+    halfW: 7, halfH: 9,
+  },
+  // Pre-placed hazard density (rules >= 2): one per this many px of map width.
+  HAZARD_MINE_SPACING: 550,
+  HAZARD_DRUM_SPACING: 800,
+  HAZARD_WORM_CLEARANCE: 55, // hazards never spawn this close to a worm spawn
 
   // WA bounce presets: MAX = -4% h / -40% v per bounce, MIN = -4% h / -70% v.
   // e = kept normal fraction, f = kept tangential fraction.

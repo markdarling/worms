@@ -196,6 +196,18 @@ export function applyExplosion(sim, cx, cy, spec, ownerId = -1) {
     }
   }
 
+  // Oil drums caught in (or near) the blast cook off — they detonate on
+  // their own next step, so chains unfold over ticks instead of recursing.
+  if (sim.drums) {
+    for (let i = 0; i < sim.drums.length; i++) {
+      const dr = sim.drums[i];
+      if (dr.dead || dr.hit) continue;
+      const dx = dr.x - cx, dy = dr.y - cy;
+      const trig = spec.radius + C.DRUM.triggerPad;
+      if (dx * dx + dy * dy < trig * trig) dr.hit = true;
+    }
+  }
+
   // Flames get hurled around and re-energised by nearby blasts.
   if (sim.flames) {
     for (let i = 0; i < sim.flames.length; i++) {
