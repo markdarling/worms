@@ -493,6 +493,25 @@ section('i. gameplay behaviour spot checks');
     const boomed = evs.filter((e) => e.type === 'explosion').length >= 1;
     assert(drumGone && boomed && sim.flames.length > 0,
       `drum chain-detonates and spills fire (${sim.flames.length} flames)`);
+    // Dragon ball (rules v2): a real energy ball — flies flat, hits the
+    // first worm in its path at range, flings it in the travel direction.
+    {
+      const s2 = flatSim({ rules: 2 });
+      s2.beginTurn(1);
+      s2.drainEvents();
+      const aw = s2.worms.find((w) => w.id === s2.activeWormId);
+      const foe = s2.worms.find((w) => w.teamIndex !== aw.teamIndex);
+      foe.x = aw.x + 80;
+      foe.y = aw.y;
+      foe.airborne = false;
+      aw.facing = 1;
+      const hp0 = foe.hp;
+      const x0 = foe.x;
+      collect(s2, [{ weapon: 'dragonball' }, { fire: true }]);
+      assert(foe.hp === hp0 - C.WEAPONS.dragonball.dmg && foe.x > x0 + 30,
+        `dragon ball hits at range and flings (hp ${foe.hp}, flung +${Math.round(foe.x - x0)}px)`);
+    }
+
     // Snapshot round-trip carries drums + weapon memory.
     sim.drums.push(new Drum(9001, 2100, 490));
     const snap = JSON.parse(JSON.stringify(sim.snapshot()));

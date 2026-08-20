@@ -239,6 +239,9 @@ export const C = {
     dragonball: {
       dmg: 30, rangeX: 16, rangeY: 14, reach: 10,
       knockVx: 260, knockVy: -80, // flat fling, first worm only
+      // rules >= 2: the energy ball is a real projectile — flat flight,
+      // no gravity, dissipates on terrain or at max range.
+      speed: 300, range: 130,
     },
 
     // ------------------------------------------------------------ guns (new)

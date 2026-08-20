@@ -137,6 +137,14 @@ export class Projectile {
       }
     } else if (this.type === 'arrow') {
       this.vy += C.GRAVITY * 0.35 * C.DT; // fast, flat arc
+    } else if (this.type === 'dragonball') {
+      // Energy ball: dead-flat flight, no gravity; fizzles at max range.
+      const db = W.dragonball;
+      if (this.age >= Math.round((db.range / db.speed) / C.DT)) {
+        sim.events.push({ type: 'flameOut', x: this.x, y: this.y });
+        this.dead = true;
+        return;
+      }
     } else {
       this.vy += C.GRAVITY * C.DT;
     }
@@ -160,7 +168,7 @@ export class Projectile {
         this.dead = true;
         return;
       }
-      if (impactExplode || this.type === 'arrow' || this.type === 'carpet') {
+      if (impactExplode || this.type === 'arrow' || this.type === 'carpet' || this.type === 'dragonball') {
         for (let k = 0; k < sim.worms.length; k++) {
           const w = sim.worms[k];
           if (!w.alive) continue;
@@ -173,6 +181,7 @@ export class Projectile {
             this.y = ny;
             if (this.type === 'arrow') this.arrowHitWorm(sim, w);
             else if (this.type === 'carpet') this.carpetPop(sim);
+            else if (this.type === 'dragonball') this.dragonHitWorm(sim, w);
             else this.explode(sim);
             return;
           }
@@ -183,6 +192,12 @@ export class Projectile {
           this.x = nx;
           this.y = ny;
           this.arrowEmbed(sim);
+          return;
+        }
+        if (this.type === 'dragonball') {
+          // Dissipates against terrain — a dust puff, no crater.
+          sim.events.push({ type: 'bounce', x: this.x, y: this.y });
+          this.dead = true;
           return;
         }
         if (this.type === 'carpet') {
@@ -248,6 +263,25 @@ export class Projectile {
     // Apply the bounce AFTER the carve so it keeps marching across the terrain.
     this.vx = this.vx * cs.f;
     this.vy = -(Math.abs(this.vy) * cs.e + 60);
+  }
+
+  // Dragon ball: the FIRST worm in the flight path takes the hit — flat,
+  // horizontal home-run fling in the ball's travel direction. No crater.
+  dragonHitWorm(sim, w) {
+    this.dead = true;
+    const db = W.dragonball;
+    const dir = this.vx >= 0 ? 1 : -1;
+    sim._damageWorm(w, db.dmg, w.x, w.y);
+    w.vx += dir * db.knockVx;
+    w.vy += db.knockVy;
+    if (!w.airborne) { w.airborne = true; w.y -= 1; }
+    sim.events.push({ type: 'explosion', x: this.x, y: this.y, r: 8, strength: 0.15 });
+    if (this.owner >= 0) {
+      const owner = sim._wormById(this.owner);
+      if (owner && owner.alive && owner.teamIndex !== w.teamIndex) {
+        sim.events.push({ type: 'wormTalk', wormId: this.owner, kind: 'laugh' });
+      }
+    }
   }
 
   arrowHitWorm(sim, w) {

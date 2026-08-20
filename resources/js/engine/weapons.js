@@ -237,7 +237,15 @@ export function fire(sim, worm, id, power, input) {
 
     case 'dragonball': {
       sim.events.push({ type: 'fire', weapon: id, x: worm.x, y: worm.y, angle, power: 0 });
-      // Horizontal short-range energy ball; FIRST worm only, flat fling.
+      if (sim.config.rules >= 2) {
+        // The energy ball is a real projectile: flat horizontal flight,
+        // hits the FIRST worm in its path, dissipates on terrain/range.
+        sim.projectiles.push(new Projectile('dragonball',
+          worm.x + worm.facing * 7, worm.y - 2,
+          worm.facing * spec.speed, 0, { owner: worm.id }));
+        return 'retreat';
+      }
+      // rules v1: instant melee box (kept so old games replay identically).
       const hits = wormsInBox(sim, worm, spec.reach, spec.rangeX, spec.rangeY);
       if (hits.length > 0) {
         const o = hits[0];
