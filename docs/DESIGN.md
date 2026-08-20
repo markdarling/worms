@@ -32,8 +32,31 @@ If the client rolls dice, an async player refreshes until the wind favours them.
 ## Match rules
 - 2–4 teams, 1–8 worms each (default: 2 teams × 4 worms, 100 HP).
 - Worm rotation cycles through each team's living worms in order.
-- **Sudden death** after round 10 (configurable): water rises ~12px per turn — bounds how long an async game can zombie on.
+- **Sudden death** after round 10 (configurable): the water rises every turn and *accelerates* every round, and all worms wither 5 HP per turn (floored at 1 — the water or a weapon lands the kill). Guarantees an async game cannot zombie on.
 - Win: last team with a living worm. Draw possible.
+
+## Rules versioning (config.rules)
+Gameplay rules added after launch are gated on `config.rules` so that older
+games — whose command streams were recorded under the old rules — replay
+identically forever. Games without a `rules` key are v1. **Rules v2** (all new
+games) adds: per-team weapon memory between turns, health crates (35% of
+drops, +25 HP), and pre-placed map hazards (armed mines + oil drums that
+detonate when blasted or burned, spilling fire).
+
+## Async meta layer (no accounts — links and this browser are the identity)
+- **Turn notifications**: in-page Notification while the tab is hidden, plus
+  web push (service worker + VAPID) with the tab closed. The committing client
+  reports `next_position` (the server never simulates); the server pushes to
+  that seat's subscriptions.
+- **Taunts**: an optional one-liner attached to each committed turn, shown as
+  a speech-bubble card while that turn's replay plays.
+- **Turn cards**: after every replayed (and own) turn, a commentary line +
+  damage summary derived by diffing worm HP across the turn.
+- **End-of-game stats + rematch**: stats re-derived by re-simulating the
+  recorded game; any seat holder can spin up a rematch (same teams/settings,
+  fresh seed and worm names, current rules).
+- **"Your games"** on the lobby: seats visited are remembered in
+  localStorage; status (whose move) comes from `/api/games/{id}/status`.
 
 ## Weapons (v1)
 
