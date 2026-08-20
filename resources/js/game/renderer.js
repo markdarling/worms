@@ -751,9 +751,11 @@ export class Renderer {
       if (aw && aw.alive !== false) {
         // The active worm moving (walk, jump, fall, new turn) reclaims a
         // manually-panned camera; while everything is still, the pan holds.
+        // Threshold is > sub-pixel so physics-settle jitter doesn't count
+        // as movement and cut a manual pan short.
         const lf = this._lastFollow;
         if (!lf || lf.id !== aw.id ||
-            Math.abs(aw.x - lf.x) > 0.01 || Math.abs(aw.y - lf.y) > 0.01) {
+            Math.abs(aw.x - lf.x) > 0.75 || Math.abs(aw.y - lf.y) > 0.75) {
           if (lf) this.camera.resumeFollow?.();
           this._lastFollow = { id: aw.id, x: aw.x, y: aw.y };
         }

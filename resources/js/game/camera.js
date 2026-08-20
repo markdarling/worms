@@ -4,7 +4,7 @@
 //   new Camera(viewW, viewH, worldW, worldH)
 //   follow(x, y)      — smooth pan target
 //   shake(strength)   — screen shake, decays
-//   nudge(dx, dy)     — manual pan (drag / edge scroll), suspends follow ~5s
+//   nudge(dx, dy)     — manual pan (drag / edge scroll), suspends follow ~10s
 //   resumeFollow()    — cancel the suspension early (the action resumed)
 //   update(dt)
 //   apply(ctx) / worldToScreen(x, y) / screenToWorld(x, y)
@@ -19,7 +19,7 @@
 //   - If the view is larger than the world (at current zoom) the world is
 //     centred (letterboxed) on that axis.
 
-const FOLLOW_SUSPEND_SECS = 5;
+const FOLLOW_SUSPEND_SECS = 10;
 const SMOOTHING = 5.5;      // higher = snappier follow
 const SHAKE_DECAY = 4.2;    // exponential decay rate
 const SHAKE_MAX = 26;       // px cap
