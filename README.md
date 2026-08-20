@@ -1,58 +1,68 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Worms: Armistice
+A faithful-feeling replication of classic Worms — the look, the physics, the humour — with one evolved axis: it's **asynchronous turn-based**, designed to be played across hours or days, like correspondence chess with explosions. No accounts, no installs: create a game, send each team their private link, and play whenever you like.
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## How it plays
+- **2–4 teams, 1–8 worms each**, on a destructible, procedurally generated island (several terrain archetypes and visual themes, seeded per game).
+- **The full arsenal** — 37 weapons: bazooka, grenades, cluster, banana, holy hand grenade, shotgun, uzi, minigun, longbow, air strikes, napalm, mines, sheep, blowtorch, drill, girder, parachute, teleport, concrete donkey, armageddon and friends.
+- **Stamina instead of a turn timer.** The 45-second clock doesn't work async, so time pressure becomes resource pressure: walking, jumping and backflipping drain a per-turn stamina budget, with a retreat reserve that unlocks after firing.
+- **The replay is the game feed.** Every turn is recorded as a deterministic command stream. When you open a game, everything you missed plays back cinematically — dead air compressed, action at full pace — with commentary cards, damage summaries, and your opponent's taunt.
+- **Sudden death** that actually ends games: from the configured round the water rises faster every round and every worm withers 5 HP a turn.
+- **Map hazards, health crates and weapon memory** (rules v2 games), pre-placed armed mines and oil drums included.
 
-## About Laravel
+## The async layer
+- **Turn notifications**: in-page while the tab is open, real web push (service worker + VAPID) with the tab closed.
+- **Taunts**: attach a one-liner to your shot; it appears during your opponent's replay.
+- **Replay browser**: step through any game turn by turn, share deep links to any moment (`/games/{id}/replay/{turn}`).
+- **Rematch + stats**: end-of-game per-team stats (damage, best turn, kills) re-derived by re-simulating the recorded game, and one-click rematch.
+- **"Your games"** on the lobby: every seat you've opened in this browser, with live whose-move status. localStorage only — the links are the identity.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Architecture in one paragraph
+The entire simulation lives in the browser (`resources/js/engine/` — plain JavaScript, no framework) and is **strictly deterministic**: fixed 60 Hz timestep, all randomness from a seeded PRNG keyed by `hash(gameSeed, turnNumber)`, no `Math.random`, no `Date`. The Laravel backend (`app/`, SQLite) never simulates; it stores the config, the command stream per turn, a snapshot and a state hash — so a replay *is* the original turn, and any client can rebuild the whole game from the seed plus the recorded inputs. Gameplay rule changes are gated behind `config.rules` so old games replay identically forever.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Getting started
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer run setup   # install, .env, key, migrate (SQLite), npm install + build
+composer run dev     # serve + vite + queue in one terminal
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Then open the lobby, create a game, and share the team links (each link IS that team's seat — the links page is guarded by an unguessable share key).
 
-## Contributing
+For closed-tab push notifications, generate VAPID keys and add them to `.env` (needs HTTPS in production):
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+php -r "require 'vendor/autoload.php'; print_r(Minishlink\WebPush\VAPID::createVapidKeys());"
+```
 
-## Code of Conduct
+```
+VAPID_SUBJECT=mailto:you@example.com
+VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Tests
 
-## Security Vulnerabilities
+```bash
+node resources/js/engine/selftest.js         # ~200 engine assertions — the ENGINE definition of done
+node resources/js/engine/mapgen-selftest.js  # map generation invariants
+php artisan test                             # backend
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+The engine selftest covers physics feel targets, every weapon, snapshot round-trips, and full-game lockstep determinism across the arsenal.
 
-## License
+## Project layout
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+| Path | What lives there |
+|---|---|
+| `resources/js/engine/` | The deterministic sim: physics, weapons, terrain, mapgen, projectiles, fire, walkers |
+| `resources/js/game/` | The client: renderer, camera, HUD, input recording, replays, notifications, turn cards |
+| `app/`, `routes/`, `database/` | Laravel record-keeper: games, turns, seats, push subscriptions, admin panel |
+| `docs/` | DESIGN.md (game design + async answers), ARCHITECTURE.md, WEAPONS.md, MAPGEN.md |
+
+## Admin
+`/admin` — first visit sets the password. Games listed by recent activity, plus an analytics tab (games and turns per day).
+
+## Notes
+- Desktop-only for now: game-facing pages show a friendly gate on mobile.
+- Sound assets are ripped-sample stand-ins living in `public/assets/`; missing samples fail silently.
+- The scale is tuned so authentic Worms Armageddon weapon values convert at roughly 0.39× WA pixels — see `docs/WEAPONS.md`.
