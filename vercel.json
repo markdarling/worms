@@ -31,16 +31,8 @@
     "APP_ROUTES_CACHE": "/tmp/routes.php",
     "APP_SERVICES_CACHE": "/tmp/services.php",
     "VIEW_COMPILED_PATH": "/tmp/views",
-    "CACHE_DRIVER": "array",
+    "CACHE_STORE": "array",
     "LOG_CHANNEL": "stderr",
     "SESSION_DRIVER": "cookie"
-  },
-  "build": {
-    "env": {
-      "COMPOSER_MIRROR_PATH_REPOS": "1"
-    }
-  },
-  "installCommand": "composer install --no-dev --optimize-autoloader --no-interaction && npm ci && npm run build",
-  "framework": null,
-  "outputDirectory": "public"
+  }
 }

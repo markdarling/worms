@@ -35,6 +35,4 @@
 
 # Development tools
 /.phpunit.result.cache
-/composer.lock
-/package-lock.json
 /.npmrc
