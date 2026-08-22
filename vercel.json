@@ -24,6 +24,7 @@
       "dest": "/api/index.php"
     }
   ],
+  "installCommand": "npm ci && npm run build",
   "buildCommand": "npm ci && npm run build",
   "env": {
     "APP_CONFIG_CACHE": "/tmp/config.php",
