@@ -9,9 +9,15 @@ This Laravel 13 application can be deployed to Vercel Hobby using serverless fun
 
 ## Required Environment Variables
 
-Set these in the Vercel Dashboard (Settings → Environment Variables):
+The `vercel.json` file already configures these for serverless:
+- Cache paths (config, events, packages, routes, services, views → `/tmp`)
+- Cache driver: `array`
+- Log channel: `stderr`
+- Session driver: `cookie`
 
-### Application
+Set these additional variables in the Vercel Dashboard (Settings → Environment Variables):
+
+### Application (Required)
 ```
 APP_NAME=Worms
 APP_ENV=production
@@ -20,7 +26,7 @@ APP_URL=https://worms.markdarling.com
 APP_KEY=<generate with: php artisan key:generate --show>
 ```
 
-### Database (Ephemeral SQLite)
+### Database (Required)
 ```
 DB_CONNECTION=sqlite
 DB_DATABASE=/tmp/database.sqlite
@@ -28,21 +34,14 @@ DB_DATABASE=/tmp/database.sqlite
 
 > **Note**: SQLite database is stored in `/tmp` and will be cleared when the serverless function instance is recycled. Games will be lost on cold starts. This is acceptable for a POC.
 
-### Session & Cache (Stateless)
+### Additional (Optional)
 ```
-SESSION_DRIVER=cookie
 SESSION_LIFETIME=120
-CACHE_STORE=array
 QUEUE_CONNECTION=sync
-```
-
-### Logging
-```
-LOG_CHANNEL=stderr
 LOG_LEVEL=info
 ```
 
-### VAPID (WebPush)
+### VAPID (Required for WebPush)
 ```
 VAPID_SUBJECT=mailto:your-email@example.com
 VAPID_PUBLIC_KEY=<your-public-key>
