@@ -24,6 +24,7 @@
       "dest": "/api/index.php"
     }
   ],
+  "buildCommand": "npm ci && npm run build",
   "env": {
     "APP_CONFIG_CACHE": "/tmp/config.php",
     "APP_EVENTS_CACHE": "/tmp/events.php",
@@ -32,6 +33,7 @@
     "APP_SERVICES_CACHE": "/tmp/services.php",
     "VIEW_COMPILED_PATH": "/tmp/views",
     "CACHE_STORE": "array",
+    "CACHE_DRIVER": "array",
     "LOG_CHANNEL": "stderr",
     "SESSION_DRIVER": "cookie"
   }
