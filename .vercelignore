@@ -1,0 +1,38 @@
+# Development dependencies
+/node_modules
+
+# Tests
+/tests
+/phpunit.xml
+/.phpunit.cache
+
+# Documentation
+/docs
+/README.md
+
+# Git
+/.git
+/.github
+/.gitignore
+/.gitattributes
+
+# Editor
+/.editorconfig
+/.idea
+/.vscode
+
+# Local environment
+/.env
+/.env.*
+!/.env.example
+
+# Build artifacts (will be rebuilt)
+/public/hot
+/public/storage
+
+# Storage (runtime directories - not needed in deployment)
+/storage/*.key
+
+# Development tools
+/.phpunit.result.cache
+/.npmrc
