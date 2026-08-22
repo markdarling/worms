@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "functions": {
+    "api/index.php": {
+      "runtime": "vercel-php@0.7.4",
+      "maxDuration": 10
+    }
+  },
+  "routes": [
+    {
+      "src": "/(favicon\\.ico|robots\\.txt|sw\\.js)",
+      "dest": "/public/$1"
+    },
+    {
+      "src": "/build/(.*)",
+      "dest": "/public/build/$1"
+    },
+    {
+      "src": "/assets/(.*)",
+      "dest": "/public/assets/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.php"
+    }
+  ],
+  "build": {
+    "env": {
+      "COMPOSER_MIRROR_PATH_REPOS": "1"
+    }
+  },
+  "installCommand": "composer install --no-dev --optimize-autoloader --no-interaction && npm ci && npm run build",
+  "framework": null,
+  "outputDirectory": "public"
+}
