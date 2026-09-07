@@ -25,8 +25,8 @@ export const OUTLINE = '#33131f';
 // Ripped asset store
 // ---------------------------------------------------------------------------
 
-const ASSET_BASE = '/assets/sprites/';
-const THEME_BASE = '/assets/themes/';
+const ASSET_BASE = withBase('/assets/sprites/');
+const THEME_BASE = withBase('/assets/themes/');
 const KEYS = {
   lav: [128, 128, 192],
   khaki: [192, 192, 128],

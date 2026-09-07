@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $game->name }} — Worms: Armistice</title>
     <script>
+        window.APP_BASE = @json(request()->getBaseUrl());
         window.GAME_ID = @json($game->public_id);
         window.REPLAY_TURN = {{ ($replayTurn ?? null) !== null ? (int) $replayTurn : 'null' }};
         window.PLAYER_TOKEN = @json($playerToken ?? null);

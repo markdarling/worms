@@ -5,6 +5,7 @@
 // inputs recorded) -> commit turn to API -> next player. The commit pipeline
 // is identical to what a networked client will use.
 
+import { withBase } from './base.js';
 import { Sim } from '../engine/sim.js';
 import { encodeCommands, decodeCommands } from '../engine/commands.js';
 import { Renderer } from './renderer.js';
@@ -42,7 +43,7 @@ async function boot() {
     // ---- Replay browser mode (shareable deep-links) -------------------------
     if (window.REPLAY_TURN != null) {
         if (game.turns.length === 0) {
-            location.href = `/games/${gameId}`;
+            location.href = withBase(`/games/${gameId}`);
             return;
         }
         const hud = new Hud(hudRoot, { onWeaponSelect() {}, onFuseSelect() {}, onSkip() {} });
@@ -103,7 +104,7 @@ async function boot() {
                 position: myPosition,
                 team: config.teams[myPosition]?.name,
                 color: config.teams[myPosition]?.color,
-                url: `/play/${window.PLAYER_TOKEN}`,
+                url: withBase(`/play/${window.PLAYER_TOKEN}`),
                 seen: Date.now(),
             };
             localStorage.setItem('worms-seats', JSON.stringify(seats));

@@ -28,3 +28,4 @@ Thumbs.db
 .gstack/
 /database/*.sqlite
 /database/*.sqlite-*
+/data

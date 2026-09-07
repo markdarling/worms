@@ -5,7 +5,7 @@
 // block autoplay); a one-time pointerdown/keydown listener resumes it.
 // Missing files fail silently (warn once) — the game never depends on audio.
 
-const BASE = '/assets/sounds/';
+const BASE = withBase('/assets/sounds/');
 
 // Logical name -> file(s). Arrays are variant pools (rotated per play).
 const FILES = {

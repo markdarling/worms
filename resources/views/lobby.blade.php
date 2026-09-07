@@ -92,6 +92,7 @@
 {{-- "Your games" list: seats live in localStorage['worms-seats'] (written by
      the game page). Each row shows whose turn it is via /status. --}}
 <script>
+        const APP_BASE = @json(request()->getBaseUrl());
     (function () {
         let seats;
         try { seats = JSON.parse(localStorage.getItem('worms-seats') || '{}'); } catch { return; }
@@ -124,7 +125,7 @@
             list.appendChild(li);
 
             const badge = li.querySelector('.lobby-mygame-status');
-            fetch(`/api/games/${id}/status`, { headers: { Accept: 'application/json' } })
+            fetch(`${APP_BASE}/api/games/${id}/status`, { headers: { Accept: 'application/json' } })
                 .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
                 .then((s) => {
                     if (s.status === 'finished') {

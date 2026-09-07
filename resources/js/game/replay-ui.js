@@ -5,6 +5,7 @@
 // HUD. Each viewed turn rebuilds a fresh Sim (fast — the engine simulates at
 // hundreds of thousands of ticks/sec) and plays that turn's command stream.
 
+import { withBase } from './base.js';
 import { Sim } from '../engine/sim.js';
 import { Renderer } from './renderer.js';
 import { Camera } from './camera.js';
@@ -140,7 +141,7 @@ export function mountReplayButton({ gameId, latestTurn, inLiveTurn }) {
         if (n < 1) { alert('No turns have been played yet.'); return; }
         if (inLiveTurn?.() && !confirm('Leave the current turn? Unfinished moves will be lost.')) return;
         try { sessionStorage.setItem(originKey(gameId), location.pathname); } catch { /* ignore */ }
-        location.href = `/games/${gameId}/replay/${n}`;
+        location.href = withBase(`/games/${gameId}/replay/${n}`);
     });
     topActions().appendChild(btn);
 }
@@ -297,7 +298,7 @@ export class ReplayBrowser {
         if (this._playing) this._player?.skip();
         cancelAnimationFrame(this._idleRaf);
         this.turn = n;
-        history.replaceState(null, '', `/games/${this.gameId}/replay/${n}`);
+        history.replaceState(null, '', withBase(`/games/${this.gameId}/replay/${n}`));
 
         this.$('[data-el="title"]').textContent = `Turn ${n} / ${turns.length}`;
         this.$('[data-el="sub"]').textContent = this._teamNameFor(turns[n - 1]);

@@ -12,15 +12,15 @@ self.addEventListener('push', (event) => {
     event.waitUntil(self.registration.showNotification(title, {
         body: data.body || 'It’s your turn.',
         tag: data.tag || 'worms-your-turn',
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        data: { url: data.url || '/' },
+        icon: new URL('favicon.ico', self.registration.scope).href,
+        badge: new URL('favicon.ico', self.registration.scope).href,
+        data: { url: data.url || self.registration.scope },
     }));
 });
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-    const url = (event.notification.data && event.notification.data.url) || '/';
+    const url = (event.notification.data && event.notification.data.url) || self.registration.scope;
     event.waitUntil((async () => {
         const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
         for (const w of wins) {

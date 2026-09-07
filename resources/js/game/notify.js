@@ -58,12 +58,12 @@ async function subscribePush() {
     if (!vapid || !token) return;
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !window.isSecureContext) return;
     try {
-        const reg = await navigator.serviceWorker.register('/sw.js');
+        const reg = await navigator.serviceWorker.register(withBase('/sw.js'));
         const sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: urlBase64ToUint8Array(vapid),
         });
-        const res = await fetch('/api/push/subscribe', {
+        const res = await fetch(withBase('/api/push/subscribe'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ player_token: token, subscription: sub.toJSON() }),

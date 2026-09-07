@@ -17,6 +17,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // token. There is no auth in v1 (hotseat), so CSRF adds no protection
         // here; excluding api/* keeps the fetch wrappers header-free.
         $middleware->validateCsrfTokens(except: ['api/*']);
+
+        // In production the app sits behind a reverse proxy (Caddy) that
+        // terminates TLS; trust its X-Forwarded-* headers so url()/asset()
+        // emit https and the client IP is the real one. The container only
+        // listens on loopback, so trusting every proxy is safe here.
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
