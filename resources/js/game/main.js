@@ -6,6 +6,10 @@
 // is identical to what a networked client will use.
 
 import { withBase } from './base.js';
+import { computerInput } from './computer.js';
+import { computerPersonality } from '../engine/computer-personality.js';
+import { ComputerTurnDisplay } from './computer-playback.js';
+import { mountTouchControls } from './touch.js';
 import { Sim } from '../engine/sim.js';
 import { encodeCommands, decodeCommands } from '../engine/commands.js';
 import { Renderer } from './renderer.js';
@@ -71,6 +75,7 @@ async function boot() {
     input.onTogglePanel = () => hud.toggleWeaponPanel?.();
     input.onPan = (dx, dy) => camera.nudge(dx, dy);
     input.attach();
+    mountTouchControls(input, camera);
 
     const resize = () => {
         camera.resize?.(window.innerWidth, window.innerHeight);
@@ -84,6 +89,7 @@ async function boot() {
     // whatever happened SINCE then (the moves they haven't seen) plays back
     // cinematically before their turn — the async replay feed.
     const remote = game.mode === 'remote';
+    const solo = game.mode === 'solo';
     const myPosition = window.PLAYER_POSITION;
     // Spectators get a stripped-down HUD (no weapon dock, no controls hint).
     if (remote && myPosition == null) document.body.classList.add('spectator');
@@ -96,7 +102,7 @@ async function boot() {
     if (remote && myPosition != null) initTurnNotifications();
     // Remember this seat locally so the lobby's "Your games" list can find it
     // again (no accounts — the browser is the identity).
-    if (remote && myPosition != null && window.PLAYER_TOKEN) {
+    if (myPosition != null && window.PLAYER_TOKEN) {
         try {
             const seats = JSON.parse(localStorage.getItem('worms-seats') || '{}');
             seats[gameId] = {
@@ -183,7 +189,7 @@ async function boot() {
 
     let committedTurns = game.turns.length;
     let inLiveTurn = false;
-    mountReplayButton({
+    if (!solo) mountReplayButton({
         gameId,
         latestTurn: () => committedTurns,
         inLiveTurn: () => inLiveTurn,
@@ -224,7 +230,7 @@ async function boot() {
         peek.beginTurn(turnNumber);
         const nextTeam = peek.state.worms.find((w) => w.id === peek.state.activeWormId)?.teamIndex ?? 0;
 
-        if (remote && nextTeam !== myPosition) {
+        if ((remote && nextTeam !== myPosition) || (solo && myPosition !== 0)) {
             // Not our seat: wait for the opponent's committed turn, then play
             // it back cinematically — the async replay feed in action.
             const arrived = await waitForTurns(gameId, turnNumber, teamName(nextTeam), sim, renderer, hud);
@@ -270,26 +276,55 @@ async function boot() {
         turnCard.begin();
         const activeTeam = sim.state.worms.find((w) => w.id === sim.state.activeWormId)?.teamIndex ?? 0;
 
+        const isComputer = solo && config.computerTeams?.includes(activeTeam);
         if (remote) {
             // Your turn starts immediately — signalled in the game chrome
             // (green banner + tab title), not a blocking overlay.
             document.title = `🔴 Your turn! — ${teamName(activeTeam)}`;
             showNetBanner(`Your turn — ${teamName(activeTeam)}`, 'turn');
             notifyYourTurn(game.name, teamName(activeTeam)); // no-op unless hidden
-        } else {
+        } else if (!solo) {
             await new Promise((resolve) => hud.showPassDevice(teamName(activeTeam), resolve));
         }
 
         input.beginTurn();
-        input.enabled = true;
+        let turnInput = input;
+        let computerDisplay = null;
+        if (isComputer) {
+            const activeWorm = sim.state.worms.find(w => w.id === sim.state.activeWormId);
+            camera.resumeFollow();
+            if (activeWorm) camera.follow(activeWorm.x, activeWorm.y - 20);
+            computerDisplay = new ComputerTurnDisplay(teamName(activeTeam), activeWorm?.name ?? 'Computer', computerPersonality(config, activeTeam).name);
+            const stopIdle = startIdleRender(sim, renderer, hud);
+            try {
+                // Plan while the camera introduces the next worm. The world
+                // remains visible, with no replay screen or pass-device overlay.
+                [turnInput] = await Promise.all([
+                    computerInput(sim, config),
+                    new Promise(resolve => setTimeout(resolve, 1400)),
+                ]);
+                computerDisplay.setPlan(turnInput.decision);
+                turnInput.onStatus = (state, phase) => computerDisplay.update(state, phase);
+            }
+            catch (error) {
+                console.error(error);
+                stopIdle();
+                computerDisplay.set('error', 'Computer could not take its turn. Reload to retry; no turn was skipped.');
+                startIdleRender(sim, renderer, hud);
+                return;
+            } finally { stopIdle(); }
+        } else {
+            input.enabled = true;
+            document.body.classList.add('my-turn');
+        }
         inLiveTurn = true;
-        document.body.classList.add('my-turn'); // reveals the weapon dock
-        await runLiveTurn(sim, renderer, camera, hud, input);
-        turnCard.finish(activeTeam); // your own commentary — brutal honesty included
+        await runLiveTurn(sim, renderer, camera, hud, turnInput);
+        computerDisplay?.remove();
+        if (!solo) turnCard.finish(activeTeam);
         document.body.classList.remove('my-turn');
         inLiveTurn = false;
         input.enabled = false;
-        if (remote) {
+        if (remote || isComputer) {
             hideNetBanner();
             document.title = baseTitle;
         }
@@ -310,16 +345,16 @@ async function boot() {
             number: turnNumber,
             player_token: myToken ?? undefined,
             player_position: activeTeam,
-            commands: encodeCommands(input.recording),
+            commands: encodeCommands(turnInput.recording),
             snapshot_after: sim.snapshot(),
             state_hash: sim.stateHash(),
             game_over: gameOver,
             winner: gameOver ? (sim.winner === 'draw' ? 'draw' : teamName(sim.winner)) : null,
-            taunt: hud.takeTaunt?.() ?? null,
+            taunt: isComputer ? null : hud.takeTaunt?.() ?? null,
             next_position: nextPosition,
         };
         try {
-            await postTurn(gameId, payload);
+            await saveTurnWithRetry(gameId, payload);
             committedTurns = turnNumber;
         } catch (e) {
             if (e.status === 409) {
@@ -334,6 +369,34 @@ async function boot() {
     }
 }
 
+// Keep the completed command stream in memory while the connection recovers.
+// A duplicate response can mean the first POST succeeded but its reply was lost.
+async function saveTurnWithRetry(gameId, payload) {
+    for (;;) {
+        try { return await postTurn(gameId, payload); }
+        catch (error) {
+            if (error.status === 409) {
+                const turns = await fetchTurnsAfter(gameId, payload.number - 1);
+                const saved = turns.find(t => t.number === payload.number);
+                if (saved && saved.player_position === payload.player_position &&
+                    JSON.stringify(saved.commands) === JSON.stringify(payload.commands)) return;
+                throw error;
+            }
+            await new Promise(resolve => {
+                const overlay = document.createElement('div');
+                overlay.className = 'save-retry';
+                overlay.setAttribute('role', 'alertdialog');
+                overlay.setAttribute('aria-label', 'Turn not saved');
+                overlay.innerHTML = '<div><h2>Your turn is ready to save</h2><p>The server could not save it. Keep this page open and retry when connected.</p><button class="hud-btn">Retry save</button></div>';
+                document.body.append(overlay);
+                const button = overlay.querySelector('button');
+                button.onclick = () => { overlay.remove(); resolve(); };
+                button.focus();
+            });
+        }
+    }
+}
+
 // Keep the scene rendering (water, clouds, idle animations) while no other
 // loop is drawing — behind overlays and while waiting. Returns a stop fn.
 function startIdleRender(sim, renderer, hud) {
@@ -342,7 +405,7 @@ function startIdleRender(sim, renderer, hud) {
     const idle = (now) => {
         if (stop) return;
         renderer.handleEvents(sim.drainEvents());
-        renderer.render(now - last);
+        renderer.render((now - last) / 1000);
         hud.update(sim.state, sim.phase);
         last = now;
         requestAnimationFrame(idle);
@@ -394,7 +457,9 @@ function runLiveTurn(sim, renderer, camera, hud, input) {
             last = now;
             let steps = 0;
             while (acc >= TICK_MS && steps < 6) {
+                if (sim.phase === 'turn-over' || sim.phase === 'game-over') break;
                 const cmd = input.sample();
+                if (cmd === null) { acc = 0; break; }
                 sim.step(cmd);
                 acc -= TICK_MS;
                 steps++;
@@ -417,8 +482,9 @@ function runLiveTurn(sim, renderer, camera, hud, input) {
             }
 
             renderer.handleEvents(sim.drainEvents());
-            renderer.render(dt); // renderer drives camera follow + update itself
+            renderer.render(dt / 1000); // renderer drives camera follow + update itself
             hud.update(sim.state, sim.phase);
+            input.onStatus?.(sim.state, sim.phase);
 
             if (sim.phase === 'turn-over' || sim.phase === 'game-over') {
                 // Let the last explosion/damage-number animations play out

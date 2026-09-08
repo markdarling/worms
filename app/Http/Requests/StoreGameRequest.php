@@ -14,6 +14,9 @@ class StoreGameRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'mode' => ['sometimes', 'in:remote,hotseat,solo'],
+            'computer_personality' => ['sometimes', 'in:mixed,bruiser,trickster,survivor'],
+            'difficulty' => ['sometimes', 'in:normal,hard'],
             'name' => ['nullable', 'string', 'max:100'],
             'teams' => ['required', 'array', 'min:2', 'max:4'],
             'teams.*.name' => ['required', 'string', 'max:50'],

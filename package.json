@@ -4,12 +4,15 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "test:engine": "node resources/js/engine/selftest.js && node resources/js/engine/mapgen-selftest.js && node resources/js/engine/computer-selftest.js && node resources/js/game/computer-playback-selftest.js && node resources/js/engine/computer-tactics-selftest.js",
+        "test:browser": "node tests/browser/game.cjs"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",
         "concurrently": "^10.0.3",
         "laravel-vite-plugin": "^3.1",
+        "playwright": "^1.63.0",
         "tailwindcss": "^4.0.0",
         "vite": "^8.0.0"
     },

@@ -235,6 +235,7 @@ export class Hud {
         cell.type = 'button';
         cell.dataset.id = w.id;
         cell.title = w.label;
+        cell.setAttribute('aria-label', w.label);
         const icon = getWeaponIcon(w.id);
         icon.className = 'hud-weapon__icon';
         cell.appendChild(icon);
@@ -581,7 +582,11 @@ export class Hud {
       });
     }
     const btn = el('a', 'hud-btn hud-btn--big', btns, 'Back to lobby');
-    btn.href = '/';
+    // The app may be mounted below the domain root (for example /worms/).
+    // Keep this navigation inside the game app instead of sending players to
+    // the host site's root page.
+    const appBase = typeof window !== 'undefined' && window.APP_BASE ? String(window.APP_BASE).replace(/\/$/, '') : '';
+    btn.href = `${appBase}/`;
     this._overlay = ov;
   }
 

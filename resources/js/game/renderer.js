@@ -34,7 +34,7 @@ import {
   drawPetrolBottle, drawStrikeMissile, drawArrowProjectile, drawMine, drawSheep,
   drawFlame, drawCarpet, drawFireball, drawDonkey, drawMeteor,
   drawGirder, drawGirderGhost, girderIndexForFuse, drawStrikeTarget,
-  drawDrum,
+  drawDrum, drawFlameJet,
 } from './sprites.js';
 import { sounds } from './sound.js';
 
@@ -861,6 +861,27 @@ export class Renderer {
     for (const wm of worms) {
       if (wm.alive === false) continue;
       this._drawTag(ctx, wm, state);
+    }
+
+    // Flamethrower is a sustained stream rather than a single projectile.
+    // Draw it from the live muzzle so aim changes and the hand-drawn jet stay
+    // in sync with the simulation's flame spawns.
+    if (state.flamer && state.activeWormId != null) {
+      const fw = this._findWorm(state.activeWormId);
+      if (fw && fw.alive !== false) {
+        const aim = fw.aimAngle || 0;
+        const facing = fw.facing || 1;
+        const dirx = Math.cos(aim) * facing;
+        const diry = -Math.sin(aim);
+        drawFlameJet(
+          ctx,
+          fw.x + dirx * 17,
+          fw.y - 8 + diry * 17,
+          Math.atan2(diry, dirx),
+          this.time,
+          { length: 54, intensity: Math.min(1, 0.72 + (state.flamer.left || 0) / 180) },
+        );
+      }
     }
 
     // Projectiles

@@ -45,6 +45,7 @@ VAPID_PRIVATE_KEY=...
 ```bash
 node resources/js/engine/selftest.js         # ~200 engine assertions — the ENGINE definition of done
 node resources/js/engine/mapgen-selftest.js  # map generation invariants
+node resources/js/engine/computer-selftest.js # computer turns and replay fidelity
 php artisan test                             # backend
 ```
 
@@ -63,6 +64,8 @@ The engine selftest covers physics feel targets, every weapon, snapshot round-tr
 `/admin` — first visit sets the password. Games listed by recent activity, plus an analytics tab (games and turns per day).
 
 ## Notes
-- Desktop-only for now: game-facing pages show a friendly gate on mobile.
+- Desktop and touch controls: move, jump, aim, hold/release to fire; drag the battlefield to pan.
+- Solo mode offers Normal and Hard computer opponents with Bruiser, Trickster, and Survivor personalities. They evaluate a broad arsenal, reposition and retreat, conserve supplies, and make seeded aim/power mistakes. The first team is yours; the host browser runs and saves computer turns.
+- See [quality and verification notes](docs/QUALITY.md) for references, checks, and remaining release work.
 - Sound assets are ripped-sample stand-ins living in `public/assets/`; missing samples fail silently.
 - The scale is tuned so authentic Worms Armageddon weapon values convert at roughly 0.39× WA pixels — see `docs/WEAPONS.md`.

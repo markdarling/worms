@@ -83,7 +83,7 @@ class GameApiTest extends TestCase
 
         // Turns are ordered and omit snapshot_after / state_hash.
         $this->assertCount(1, $data['turns']);
-        $this->assertSame(['number', 'player_position', 'commands'], array_keys($data['turns'][0]));
+        $this->assertSame(['number', 'player_position', 'commands', 'taunt'], array_keys($data['turns'][0]));
         $this->assertSame(1, $data['turns'][0]['number']);
     }
 
@@ -171,7 +171,7 @@ class GameApiTest extends TestCase
         $response->assertOk();
         $turns = $response->json();
         $this->assertSame([2, 3], array_column($turns, 'number'));
-        $this->assertSame(['number', 'player_position', 'commands'], array_keys($turns[0]));
+        $this->assertSame(['number', 'player_position', 'commands', 'taunt'], array_keys($turns[0]));
     }
 
     public function test_turn_post_validates_required_fields(): void

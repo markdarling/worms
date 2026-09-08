@@ -80,7 +80,7 @@ export class ReplayPlayer {
                         steps++;
                     }
                     this.renderer.handleEvents(this.sim.drainEvents());
-                    this.renderer.render(now - last); // renderer drives the camera
+                    this.renderer.render((now - last) / 1000); // renderer drives the camera
                     onFrame?.();
                     if (i >= cmds.length) {
                         // Commands done — keep rendering so the final

@@ -4,6 +4,10 @@ import { bunny } from 'laravel-vite-plugin/fonts';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
+    // Keep worker and dynamically loaded assets relative to their bundle.
+    // Production is mounted at /worms/, while local development can use /.
+    base: './',
+    worker: { format: 'es' },
     plugins: [
         laravel({
             input: [

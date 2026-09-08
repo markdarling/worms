@@ -353,7 +353,7 @@ export class ReplayBrowser {
         let last = performance.now();
         const idle = (now) => {
             renderer.handleEvents(sim.drainEvents());
-            renderer.render(now - last);
+            renderer.render((now - last) / 1000);
             last = now;
             this._idleRaf = requestAnimationFrame(idle);
         };

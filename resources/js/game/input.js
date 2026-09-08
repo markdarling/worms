@@ -39,37 +39,42 @@ export class InputRecorder {
 
         on(window, 'keydown', (e) => this._keydown(e));
         on(window, 'keyup', (e) => this._keyup(e));
-        on(window, 'blur', () => { this.held = {}; });
+        on(window, 'blur', () => { this.held = {}; this.oneShot = {}; this._spaceHeld = false; this._dragging = false; });
         on(this.canvas, 'contextmenu', (e) => {
             e.preventDefault();
             this.onTogglePanel?.();
         });
-        on(this.canvas, 'mousedown', (e) => {
+        on(this.canvas, 'pointerdown', (e) => {
             if (e.button !== 0) return;
+            if (this._dragging) return;
+            this._pointerId = e.pointerId;
+            this.canvas.setPointerCapture(e.pointerId);
             this._dragging = true;
             this._dragMoved = false;
             this._dragLast = { x: e.clientX, y: e.clientY };
         });
+        on(this.canvas, 'pointercancel', () => { this._dragging = false; });
+        on(this.canvas, 'lostpointercapture', () => { this._dragging = false; });
         on(this.canvas, 'wheel', (e) => {
             e.preventDefault();
             const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY; // lines -> px
             this.camera.zoomAt(Math.exp(-dy * 0.0012), e.clientX, e.clientY);
         }, { passive: false });
-        on(window, 'mousemove', (e) => {
+        on(window, 'pointermove', (e) => {
             // Ghost previews (girder placement) track the cursor in world space.
             if (this.enabled && this.targetMode && this.onHoverWorld) {
                 const world = this.camera.screenToWorld(e.clientX, e.clientY);
                 this.onHoverWorld(world.x, world.y);
             }
-            if (!this._dragging) return;
+            if (!this._dragging || e.pointerId !== this._pointerId) return;
             const dx = e.clientX - this._dragLast.x;
             const dy = e.clientY - this._dragLast.y;
             if (Math.abs(dx) + Math.abs(dy) > 2) this._dragMoved = true;
             if (this._dragMoved) this.onPan?.(-dx, -dy);
             this._dragLast = { x: e.clientX, y: e.clientY };
         });
-        on(window, 'mouseup', (e) => {
-            if (!this._dragging) return;
+        on(window, 'pointerup', (e) => {
+            if (!this._dragging || e.pointerId !== this._pointerId) return;
             this._dragging = false;
             // A click (not a drag) places a target for click-aimed weapons.
             // targetFires=false (homing): the click only marks the target —
@@ -83,13 +88,15 @@ export class InputRecorder {
     }
 
     detach() {
+        this.held = {};
+        this.oneShot = {};
         for (const [t, ev, fn, opts] of this._bound) t.removeEventListener(ev, fn, opts);
         this._bound = [];
     }
 
     _keydown(e) {
         // Typing in a text field (taunt box) must never drive the worm.
-        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable)) return;
         if (e.repeat) return;
         if (e.code === 'Tab') {
             e.preventDefault();
@@ -104,6 +111,7 @@ export class InputRecorder {
         if (HELD_KEYS[e.code]) {
             e.preventDefault();
             this.held[HELD_KEYS[e.code]] = true;
+            if (e.code === 'Space') this._spaceHeld = true;
         } else if (e.code === 'Enter') {
             e.preventDefault();
             this.oneShot.jump = true;
@@ -117,12 +125,13 @@ export class InputRecorder {
     }
 
     _keyup(e) {
-        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable)) return;
         if (HELD_KEYS[e.code]) {
             e.preventDefault();
             this.held[HELD_KEYS[e.code]] = false;
             // Releasing a charge fires the shot (classic power-charge behaviour).
-            if (e.code === 'Space' && this.enabled) this.oneShot.fire = true;
+            if (e.code === 'Space' && this.enabled && this._spaceHeld) this.oneShot.fire = true;
+            if (e.code === 'Space') this._spaceHeld = false;
         }
     }
 
@@ -137,6 +146,7 @@ export class InputRecorder {
 
     beginTurn() {
         this.recording = [];
+        this._spaceHeld = false;
         this.held = {};
         this.oneShot = {};
     }

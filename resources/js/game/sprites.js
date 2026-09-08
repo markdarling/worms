@@ -1,3 +1,4 @@
+import { withBase } from './base.js';
 // sprites.js — sprite / drawing library for Worms: Armistice.
 //
 // Two layers:
@@ -1262,6 +1263,25 @@ export function drawPetrolBottle(ctx, x, y, angle, t = 0) {
 
 /** Air/napalm/mine-strike drop missile. Fallback: bazooka shell art. */
 export function drawStrikeMissile(ctx, x, y, angle, t = 0) {
+  // The ripped missile has the classic fins but no exhaust pixels. Add the
+  // short hot tail seen in the original airstrike/napalm launch; it is kept
+  // behind the sprite so the red nose remains crisp.
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  const flick = 0.8 + 0.2 * Math.sin(t * 28);
+  const trail = ctx.createLinearGradient(-2, 0, -18, 0);
+  trail.addColorStop(0, 'rgba(255, 246, 166, 0.95)');
+  trail.addColorStop(0.35, 'rgba(255, 150, 35, 0.82)');
+  trail.addColorStop(1, 'rgba(235, 54, 24, 0)');
+  ctx.fillStyle = trail;
+  ctx.beginPath();
+  ctx.moveTo(-1, -1.8);
+  ctx.quadraticCurveTo(-9, -3.5 * flick, -19, 0);
+  ctx.quadraticCurveTo(-9, 3.5 * flick, -1, 1.8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
   if (assetsReady && sheets.projStrike) {
     drawRotSheet(ctx, sheets.projStrike, x, y, angle, 0.6);
     return;
@@ -1430,7 +1450,14 @@ export function drawFlame(ctx, x, y, { size = 1, t = 0, seed = 0 } = {}) {
   ctx.restore();
   const sheet = sheets.flameBig || sheets.flame || sheets.firePetrol;
   if (assetsReady && sheet) {
-    const idx = Math.floor(t * 18 + seed * 5.3) % sheet.frames;
+    // The ripped sheet contains a complete size falloff as well as the
+    // flicker cycle.  A standing flame should flicker at a stable size; using
+    // all 32 frames made it shrink to a spark and then pop back to full size.
+    // The first twelve frames are the readable, full flame loop.
+    const count = Math.min(12, sheet.frames);
+    const span = Math.max(1, count * 2 - 2);
+    const phase = Math.floor(t * 14 + seed * 5.3) % span;
+    const idx = phase < count ? phase : span - phase;
     ctx.save();
     ctx.translate(x, y - 6 * s);
     blitFrame(ctx, sheet, idx, s);
@@ -1453,6 +1480,53 @@ export function drawFlame(ctx, x, y, { size = 1, t = 0, seed = 0 } = {}) {
   ctx.moveTo(0, -4.5);
   ctx.quadraticCurveTo(2.4, -1.6, 0, 0.6);
   ctx.quadraticCurveTo(-2.4, -1.6, 0, -4.5);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Directional flamethrower stream.  The original weapon reads as a short,
+ * dense cone from the muzzle, with a hot yellow core and ragged orange edge;
+ * it is not a line of identical fireballs.  The sprite flames supply the
+ * hand-drawn edge while the cone/glow keeps the stream continuous between
+ * frames.
+ */
+export function drawFlameJet(ctx, x, y, angle = 0, t = 0, { length = 58, intensity = 1 } = {}) {
+  const pulse = 0.92 + Math.sin(t * 22) * 0.08;
+  const len = length * pulse;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  const glow = ctx.createLinearGradient(0, 0, len, 0);
+  glow.addColorStop(0, `rgba(255, 238, 132, ${0.58 * intensity})`);
+  glow.addColorStop(0.28, `rgba(255, 154, 34, ${0.38 * intensity})`);
+  glow.addColorStop(1, 'rgba(255, 91, 24, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.moveTo(2, -4.5);
+  ctx.quadraticCurveTo(len * 0.48, -10 - Math.sin(t * 13) * 2, len, -1);
+  ctx.quadraticCurveTo(len * 0.48, 10 + Math.sin(t * 11) * 2, 2, 4.5);
+  ctx.closePath();
+  ctx.fill();
+
+  // Local sprite-up is rotated into the backward direction of travel.
+  ctx.save();
+  ctx.rotate(Math.PI / 2);
+  const count = 5;
+  for (let i = 0; i < count; i++) {
+    const d = 7 + i * (len - 14) / (count - 1);
+    const sway = Math.sin(t * (15 + i * 1.7) + i * 2.4) * (1.4 + i * 0.9);
+    const scale = (0.68 - i * 0.085) * intensity;
+    drawFlame(ctx, -d, sway, { size: scale, t: t + i * 0.06, seed: i + 41 });
+  }
+  ctx.restore();
+
+  // White-hot muzzle core gives the launch a clear origin at the weapon.
+  ctx.globalAlpha = 0.75 * intensity;
+  ctx.fillStyle = '#fff6b0';
+  ctx.beginPath();
+  ctx.ellipse(2, 0, 7 * pulse, 2.2 * pulse, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }

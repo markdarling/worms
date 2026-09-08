@@ -39,7 +39,7 @@ class GameCreationTest extends TestCase
         // Config must exactly match the Sim config contract shape.
         $config = $game->config;
         $this->assertSame(
-            ['seed', 'width', 'height', 'teams', 'wormHp', 'stamina', 'suddenDeathRound'],
+            ['rules', 'seed', 'width', 'height', 'teams', 'wormHp', 'stamina', 'suddenDeathRound'],
             array_keys($config)
         );
         $this->assertSame($game->seed, $config['seed']);
@@ -53,7 +53,7 @@ class GameCreationTest extends TestCase
         foreach ($config['teams'] as $team) {
             $this->assertSame(['name', 'color', 'worms'], array_keys($team));
             $this->assertCount(4, $team['worms']);
-            $this->assertContainsOnly('string', $team['worms']);
+            $this->assertContainsOnlyString($team['worms']);
         }
 
         // Worm names must be unique across the whole game.

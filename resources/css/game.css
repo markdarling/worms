@@ -1464,117 +1464,6 @@ body.sudden-death #hud-root::before {
 
 .lobby-copy-icon:hover { background: rgba(43, 32, 40, 0.18); }
 
-/* ==========================================================================
-   DESKTOP-ONLY GATE — full-screen "play this on desktop" overlay
-   (partials/desktop-only.blade.php). Hidden on desktop; a media query flips
-   it on for phone-sized viewports (portrait) and coarse-pointer landscape
-   phones. Sits above everything, fully opaque, same sky/grass look as the
-   lobby so it reads as part of the game rather than an error page.
-   ========================================================================== */
-
-.desktop-gate { display: none; }
-
-@media (max-width: 767px), (pointer: coarse) and (max-height: 500px) {
-  .desktop-gate {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px 20px 110px;
-    font-family: var(--w-font);
-    overflow: hidden;
-    background:
-      radial-gradient(ellipse 60% 30% at 20% 12%, rgba(255, 255, 255, 0.55), transparent 70%),
-      radial-gradient(ellipse 50% 24% at 75% 20%, rgba(255, 255, 255, 0.45), transparent 70%),
-      linear-gradient(180deg, var(--w-sky-top) 0%, #a8d6f5 55%, var(--w-sky-bottom) 100%);
-  }
-
-  /* Grassy footer strip, same recipe as .lobby::after. */
-  .desktop-gate::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 84px;
-    pointer-events: none;
-    background:
-      linear-gradient(180deg,
-        #9edb4f 0%,
-        var(--w-grass) 10%,
-        #4aa02a 22%,
-        #3d2413 24%,
-        var(--w-soil) 34%,
-        #6b3f1c 70%,
-        #543115 100%);
-    border-top: 3px solid var(--w-ink);
-  }
-}
-
-.desktop-gate__card {
-  position: relative;
-  z-index: 1;
-  max-width: 420px;
-  text-align: center;
-  background: var(--w-cream);
-  color: #2b2028;
-  border: 3px solid var(--w-ink);
-  border-radius: 18px;
-  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.35);
-  padding: 28px 26px 24px;
-  animation: card-pop 0.35s cubic-bezier(0.34, 1.6, 0.5, 1);
-}
-
-.desktop-gate__worm {
-  font-size: 54px;
-  line-height: 1;
-  animation: gate-bob 1.6s ease-in-out infinite;
-}
-
-@keyframes gate-bob {
-  0%, 100% { transform: translateY(0) rotate(-6deg); }
-  50% { transform: translateY(-8px) rotate(6deg); }
-}
-
-.desktop-gate__kicker {
-  margin: 14px 0 2px;
-  font-size: 13px;
-  font-weight: bold;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--w-red);
-}
-
-.desktop-gate__title {
-  margin: 0 0 10px;
-  font-size: clamp(24px, 7vw, 32px);
-  letter-spacing: 0.5px;
-  color: #fff;
-  transform: rotate(-1.2deg);
-  text-shadow:
-    0 2px 0 var(--w-ink),
-    2px 0 0 var(--w-ink),
-    -2px 0 0 var(--w-ink),
-    0 -2px 0 var(--w-ink),
-    0 6px 0 rgba(0, 0, 0, 0.2);
-}
-
-.desktop-gate__text {
-  margin: 0 0 12px;
-  font-size: 15px;
-  font-weight: bold;
-  line-height: 1.5;
-}
-
-.desktop-gate__hint {
-  margin: 0;
-  font-size: 12px;
-  font-weight: bold;
-  color: rgba(43, 32, 40, 0.55);
-}
-
 /* Team rows in the new-game form: colour swatch left, name beside it. */
 .lobby-form-team {
   display: flex;
@@ -1600,3 +1489,91 @@ body.sudden-death #hud-root::before {
   flex: 1;
   min-width: 0;
 }
+
+/* Touch controls stay separate from the scrolling arsenal. */
+#game-canvas { touch-action: none; height: 100dvh; }
+.touch-controls { display: none; }
+button:focus-visible, a:focus-visible { outline: 3px solid #ffc21c; outline-offset: 3px; }
+@media (pointer: coarse), (max-width: 720px) {
+  .touch-controls { display: block; position: fixed; inset: 0; pointer-events: none; z-index: 12; font-family: var(--w-font); }
+  .touch-controls button { pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; min-width: 44px; min-height: 44px; border: 1px solid #ffffff40; border-radius: 12px; background: #181220ed; color: #fff; font: bold 12px var(--w-font); box-shadow: 0 3px 8px #0004; }
+  .touch-controls button.is-held { background: #805f18; border-color: var(--w-amber); }
+  .touch-camera { position: absolute; right: max(10px, env(safe-area-inset-right)); top: 160px; display: flex; gap: 5px; }
+  .touch-play { display: none; position: absolute; bottom: max(10px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); right: max(8px, env(safe-area-inset-right)); justify-content: space-between; gap: 8px; }
+  body.my-turn .touch-play { display: flex; }
+  .touch-group { display: flex; gap: 5px; }
+  .touch-controls .touch-fire { background: #b64125; padding: 0 12px; }
+  .hud-dockwrap { bottom: calc(65px + env(safe-area-inset-bottom)); width: calc(100vw - 16px); max-width: 900px; }
+  .hud-dockbar { display: none; }
+  .hud-weapons { max-width: 100%; padding: 5px; gap: 5px; }
+  .hud-weapon { width: 44px; min-width: 44px; min-height: 44px; }
+  .hud-keys, .hud-title { display: none; }
+  .hud-top { top: max(6px, env(safe-area-inset-top)); left: 8px; right: 8px; gap: 4px; }
+  .hud-topright { gap: 4px; }
+  .hud-wind { padding: 6px; gap: 4px; }
+  .hud-wind__label { display: none; }
+  .hud-turnbox { padding: 5px 8px; }
+  .hud-teams { top: calc(54px + env(safe-area-inset-top)); left: 8px; padding: 6px; min-width: 0; }
+  .hud-team { gap: 4px; }
+  .hud-team__bar { width: 65px; }
+  .hud-team__name { width: 60px; font-size: 10px; }
+  .hud-stamina { top: calc(58px + env(safe-area-inset-top)); right: 8px; bottom: auto; width: 140px; }
+  .hud-overlay__card { max-width: calc(100vw - 24px); max-height: 90dvh; overflow: auto; padding: 24px; }
+  .hud-overlay__name { font-size: 28px; overflow-wrap: anywhere; }
+  .lobby { padding: 24px 12px 100px; }
+  .lobby-form input[type="text"], .lobby-form input[type="number"], .lobby-form select { font-size: 16px; min-height: 44px; }
+  .lobby-link-row, .lobby-mygame { flex-wrap: wrap; }
+  .lobby-team-chip { min-width: 80px; }
+  .lobby-link-field { flex-basis: 55%; }
+  .lobby-mygame-status { white-space: normal; }
+}
+@media (max-width: 380px) {
+  .touch-play { flex-wrap: wrap; }
+  .touch-group { flex: 1; justify-content: center; }
+  .hud-dockwrap { bottom: calc(112px + env(safe-area-inset-bottom)); }
+}
+@media (pointer: coarse) and (max-height: 500px) {
+  .hud-teams { top: 48px; }
+  .touch-camera { top: 105px; }
+  .hud-stamina { top: 48px; }
+  .hud-weapons__group { grid-template-rows: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+.save-retry { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: #100d19dd; color: var(--w-text); font-family: var(--w-font); padding: 24px; }
+.save-retry > div { max-width: 440px; padding: 24px; border: 1px solid #fff4; border-radius: 18px; background: #241e30; }
+
+@media (pointer: coarse), (max-width: 720px) {
+  .touch-status { display: none; position: absolute; bottom: calc(176px + env(safe-area-inset-bottom)); left: 8px; right: 8px; padding: 6px 10px; background: #181220df; border-radius: 8px; font-size: 11px; text-align: center; color: var(--w-text); }
+  body.my-turn .touch-status { display: block; }
+  .hud-fuse__btn { min-width: 44px; min-height: 44px; }
+  .hud-power { bottom: calc(205px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 380px) { .touch-status { bottom: calc(224px + env(safe-area-inset-bottom)); } }
+@media (pointer: coarse) and (max-height: 500px) { .touch-status { bottom: calc(126px + env(safe-area-inset-bottom)); } }
+
+/* Solo battles show the computer acting in the live world. */
+.computer-turn {
+  position: fixed; bottom: max(18px, env(safe-area-inset-bottom));
+  left: 50%; transform: translateX(-50%); z-index: 20;
+  display: flex; align-items: center; gap: 14px;
+  width: max-content; max-width: calc(100vw - 24px);
+  padding: 14px 18px; border: 1px solid #ffc21c80; border-radius: 14px;
+  background: #181220f2; color: var(--w-text); font: 13px var(--w-font);
+  box-shadow: 0 6px 24px #0005; pointer-events: none;
+}
+.computer-turn__live { color: var(--w-amber); font-size: 11px; font-weight: bold; white-space: nowrap; }
+.computer-turn__live::before { content: '●'; margin-right: 6px; }
+.computer-turn[data-stage=thinking] .computer-turn__live::before { animation: hud-blink 1s infinite; }
+.computer-turn strong { display: block; margin-bottom: 4px; }
+.computer-turn__status { font-size: 12px; line-height: 1.4; }
+.computer-turn progress { display: none; width: 65px; accent-color: var(--w-amber); }
+.computer-turn[data-stage=charging] progress { display: block; }
+@media (max-width: 420px) {
+  .computer-turn { gap: 9px; padding: 12px; }
+  .computer-turn progress { width: 38px; }
+}
+
+.computer-turn__personality { display: block; color: var(--w-amber); font-size: 10px; margin-bottom: 5px; line-height: 1.3; }

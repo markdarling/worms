@@ -46,9 +46,13 @@ class GameController extends Controller
             'suddenDeathRound' => (int) $validated['sudden_death_round'],
         ];
 
-        // All new games are remote (link-per-team). The mode column and the
-        // hotseat pass-device flow remain only for games created before this.
-        $mode = 'remote';
+        // Solo uses one browser to record both human and computer turns.
+        $mode = $validated['mode'] ?? 'remote';
+        if ($mode === 'solo') {
+            $config['computerTeams'] = range(1, count($teams) - 1);
+            $config['difficulty'] = $validated['difficulty'] ?? 'normal';
+            $config['computerPersonality'] = $validated['computer_personality'] ?? 'mixed';
+        }
 
         $game = DB::transaction(function () use ($validated, $seed, $config, $mode) {
             $game = Game::create([
@@ -75,6 +79,10 @@ class GameController extends Controller
 
             return $game;
         });
+
+        if ($mode !== 'remote') {
+            return redirect()->route('games.play', ['token' => $game->players()->where('position', 0)->firstOrFail()->token]);
+        }
 
         // Games aren't listed anywhere — the links page is the one place the
         // creator collects every URL, so both modes land there.

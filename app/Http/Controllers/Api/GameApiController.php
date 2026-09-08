@@ -88,12 +88,12 @@ class GameApiController extends Controller
         // game AND belong to the team the turn is being committed for — a valid
         // team-A token can never commit team B's turn. Hotseat games skip this
         // (one trusted device).
-        if ($game->mode === 'remote') {
+        if ($game->mode === 'remote' || $game->mode === 'solo') {
             $player = $game->players()
                 ->where('token', (string) ($data['player_token'] ?? ''))
                 ->first();
 
-            if ($player === null || $player->position !== (int) $data['player_position']) {
+            if ($player === null || ($game->mode === 'solo' ? $player->position !== 0 : $player->position !== (int) $data['player_position'])) {
                 return response()->json([
                     'ok' => false,
                     'error' => 'invalid_seat_token',
@@ -242,7 +242,7 @@ class GameApiController extends Controller
                 'seed' => $seed,
                 'config' => $config,
                 'status' => 'active',
-                'mode' => 'remote',
+                'mode' => $game->mode,
                 'current_turn' => 1,
             ]);
             foreach ($config['teams'] as $position => $team) {
@@ -259,7 +259,9 @@ class GameApiController extends Controller
 
         return response()->json([
             'ok' => true,
-            'links_url' => route('games.links', ['game' => $rematch, 'key' => $rematch->share_key]),
+            'links_url' => $rematch->mode === 'remote'
+                ? route('games.links', ['game' => $rematch, 'key' => $rematch->share_key])
+                : route('games.play', ['token' => $rematch->players()->where('position', 0)->firstOrFail()->token]),
         ]);
     }
 

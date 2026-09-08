@@ -4,7 +4,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>{{ $game->name }} — Worms: Armistice</title>
     <script>
         window.APP_BASE = @json(request()->getBaseUrl());
@@ -22,6 +22,6 @@
 <body>
     <canvas id="game-canvas"></canvas>
     <div id="hud-root"></div>
-    @include('partials.desktop-only')
+
 </body>
 </html>

@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { createComputerPlayback } from './computer-playback.js';
+let time = 0;
+const commands = [{ weapon: 'shotgun', left: true }, { fire: true }, {}];
+const playback = createComputerPlayback(commands, () => time);
+assert.deepEqual(playback.sample(), commands[0]);
+assert.equal(playback.sample(), null, 'weapon must remain visible before instant-hit shots');
+time = 649;
+assert.equal(playback.sample(), null);
+assert.equal(playback.recording.length, 1, 'presentation pauses must not alter recorded simulation');
+time = 650;
+assert.deepEqual(playback.sample(), commands[1]);
+assert.deepEqual(playback.sample(), commands[2]);
+assert.deepEqual(playback.recording, commands, 'live playback must preserve the planned commands exactly');
+console.log('Computer live presentation pacing and recording checks passed.');

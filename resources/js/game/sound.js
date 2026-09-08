@@ -1,3 +1,4 @@
+import { withBase } from './base.js';
 // sound.js — tiny WebAudio sound bank for Worms: Armistice.
 //
 // Usage: sounds.init() once (renderer constructor), then sounds.play(name).

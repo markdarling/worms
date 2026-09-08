@@ -6,7 +6,7 @@
 <main class="lobby">
     <header class="lobby-header">
         <h1 class="lobby-title">Worms: Armistice</h1>
-        <p class="lobby-tagline">Asynchronous turn-based artillery — correspondence chess with explosions.</p>
+        <p class="lobby-tagline">Tiny teams. Big explosions. Play solo, pass the device, or challenge friends.</p>
     </header>
 
     {{-- "Your games": seats remembered in this browser's localStorage (no
@@ -31,6 +31,30 @@
         <form class="lobby-form" method="POST" action="{{ route('games.store') }}">
             @csrf
 
+            <div class="lobby-form-row">
+                <label for="game-mode">How do you want to play?</label>
+                <select id="game-mode" name="mode">
+                    <option value="solo" @selected(old('mode', 'solo') === 'solo')>Solo — you against the computer</option>
+                    <option value="remote" @selected(old('mode') === 'remote')>Online friends — private team links</option>
+                    <option value="hotseat" @selected(old('mode') === 'hotseat')>Pass &amp; play — one device</option>
+                </select>
+                <p class="lobby-form-help">In solo, you command the first team. The computer commands the others. Games save after every turn.</p>
+            </div>
+            <div class="lobby-form-row" id="difficulty-row">
+                <label for="difficulty">Computer difficulty</label>
+                <select id="difficulty" name="difficulty">
+                    <option value="normal" @selected(old('difficulty', 'normal') === 'normal')>Normal</option>
+                    <option value="hard" @selected(old('difficulty') === 'hard')>Hard — stronger tactics, smaller mistakes</option>
+                </select>
+                <label for="computer-personality">Computer personality</label>
+                <select id="computer-personality" name="computer_personality">
+                    <option value="mixed" @selected(old('computer_personality', 'mixed') === 'mixed')>Mixed — a distinct style for each team</option>
+                    <option value="bruiser" @selected(old('computer_personality') === 'bruiser')>Bruiser — aggressive, close-range pressure</option>
+                    <option value="trickster" @selected(old('computer_personality') === 'trickster')>Trickster — explosives and awkward angles</option>
+                    <option value="survivor" @selected(old('computer_personality') === 'survivor')>Survivor — cautious, conserves supplies</option>
+                </select>
+                <p class="lobby-form-help">All styles can reposition, retreat, and make mistakes. Difficulty controls accuracy and tactical search.</p>
+            </div>
             <div class="lobby-form-row">
                 <label class="lobby-form-label" for="game-name">Game name</label>
                 <input class="lobby-form-input" type="text" id="game-name" name="name"
@@ -102,6 +126,9 @@
         const card = document.getElementById('my-games');
         const list = document.getElementById('my-games-list');
         card.hidden = false;
+        const hideIfEmpty = () => {
+            if (!list.children.length) card.hidden = true;
+        };
 
         const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
             { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
@@ -121,7 +148,7 @@
                 <span class="lobby-mygame-status">…</span>
                 <button type="button" class="lobby-mygame-forget" title="Remove from this list">✕</button>
             `;
-            li.querySelector('.lobby-mygame-forget').addEventListener('click', () => { forget(id); li.remove(); });
+            li.querySelector('.lobby-mygame-forget').addEventListener('click', () => { forget(id); li.remove(); hideIfEmpty(); });
             list.appendChild(li);
 
             const badge = li.querySelector('.lobby-mygame-status');
@@ -141,7 +168,7 @@
                     }
                 })
                 .catch((e) => {
-                    if (String(e.message) === '404') { forget(id); li.remove(); return; }
+                    if (String(e.message) === '404') { forget(id); li.remove(); hideIfEmpty(); return; }
                     badge.textContent = '—';
                 });
         }
@@ -164,6 +191,10 @@
             });
         }
 
+        const mode = document.getElementById('game-mode');
+        const syncMode = () => { document.getElementById('difficulty-row').hidden = mode.value !== 'solo'; };
+        mode.addEventListener('change', syncMode);
+        syncMode();
         select.addEventListener('change', sync);
         sync();
     })();
